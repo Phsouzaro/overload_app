@@ -1,0 +1,85 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="512" y2="512" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#0d0d1f"/>
+      <stop offset="100%" stop-color="#1a1040"/>
+    </linearGradient>
+    <linearGradient id="plate" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#ff3d3d"/>
+      <stop offset="100%" stop-color="#c0200a"/>
+    </linearGradient>
+    <linearGradient id="plate2" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#ff7800"/>
+      <stop offset="100%" stop-color="#c05200"/>
+    </linearGradient>
+    <filter id="glow" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="5" result="blur"/>
+      <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+  </defs>
+
+  <!-- Background -->
+  <rect width="512" height="512" rx="88" fill="url(#bg)"/>
+  <ellipse cx="256" cy="210" rx="220" ry="50" fill="#ff4400" opacity="0.06"/>
+
+  <!-- ── BARBELL ── -->
+  <rect x="54"  y="196" width="64" height="11" rx="5" fill="#888"/>
+  <rect x="394" y="196" width="64" height="11" rx="5" fill="#888"/>
+  <rect x="118" y="198" width="276" height="7"  rx="3" fill="#bbb"/>
+
+  <!-- Left plates -->
+  <rect x="54"  y="167" width="30" height="66" rx="8" fill="url(#plate)"/>
+  <rect x="84"  y="173" width="16" height="54" rx="5" fill="url(#plate2)"/>
+  <rect x="100" y="190" width="12" height="22" rx="3" fill="#666"/>
+
+  <!-- Right plates -->
+  <rect x="428" y="167" width="30" height="66" rx="8" fill="url(#plate)"/>
+  <rect x="412" y="173" width="16" height="54" rx="5" fill="url(#plate2)"/>
+  <rect x="400" y="190" width="12" height="22" rx="3" fill="#666"/>
+
+  <!-- ── ATHLETE ── -->
+  <g filter="url(#glow)">
+    <!-- Head -->
+    <circle cx="256" cy="100" r="32" fill="white"/>
+
+    <!-- Neck -->
+    <rect x="245" y="130" width="22" height="24" rx="6" fill="white"/>
+
+    <!-- Shoulders -->
+    <rect x="194" y="152" width="124" height="26" rx="13" fill="white"/>
+
+    <!-- Arms -->
+    <polyline points="206,165 176,178 159,196"
+      stroke="white" stroke-width="17" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+    <polyline points="306,165 336,178 353,196"
+      stroke="white" stroke-width="17" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+
+    <!-- Hands -->
+    <circle cx="157" cy="197" r="9" fill="white"/>
+    <circle cx="355" cy="197" r="9" fill="white"/>
+
+    <!-- Torso -->
+    <path d="M 222 180  L 240 316  L 272 316  L 290 180 Z" fill="white"/>
+
+    <!-- Belt -->
+    <rect x="237" y="282" width="38" height="18" rx="6" fill="#ff3d3d" opacity="0.85"/>
+
+    <!-- Hips -->
+    <ellipse cx="256" cy="318" rx="42" ry="15" fill="white"/>
+
+    <!-- Left leg -->
+    <line x1="243" y1="325" x2="170" y2="376" stroke="white" stroke-width="23" stroke-linecap="round"/>
+    <line x1="170" y1="376" x2="152" y2="446" stroke="white" stroke-width="19" stroke-linecap="round"/>
+    <ellipse cx="143" cy="451" rx="32" ry="12" fill="white" transform="rotate(-8 143 451)"/>
+    <circle cx="170" cy="376" r="13" fill="white"/>
+
+    <!-- Right leg -->
+    <line x1="269" y1="325" x2="342" y2="376" stroke="white" stroke-width="23" stroke-linecap="round"/>
+    <line x1="342" y1="376" x2="360" y2="446" stroke="white" stroke-width="19" stroke-linecap="round"/>
+    <ellipse cx="369" cy="451" rx="32" ry="12" fill="white" transform="rotate(8 369 451)"/>
+    <circle cx="342" cy="376" r="13" fill="white"/>
+  </g>
+
+  <!-- Floor shadow -->
+  <ellipse cx="256" cy="468" rx="145" ry="12" fill="#000" opacity="0.3"/>
+</svg>

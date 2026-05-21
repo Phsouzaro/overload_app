@@ -1,13 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import '../../../core/database/app_database.dart';
 import '../providers/workout_providers.dart';
 import '../../../features/session_history/screens/session_history_screen.dart';
 import 'archived_workouts_screen.dart';
 import 'workout_detail_screen.dart';
-
-// ── Import state ──────────────────────────────────────────────────────────────
-// Kept simple as a local bool; no need for a global provider.
 
 
 class WorkoutListScreen extends ConsumerStatefulWidget {
@@ -63,7 +61,18 @@ class _WorkoutListScreenState extends ConsumerState<WorkoutListScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Meus Treinos'),
+        title: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            SvgPicture.asset(
+              'assets/images/logo_icon.svg',
+              width: 32,
+              height: 32,
+            ),
+            const SizedBox(width: 10),
+            const Text('Meus Treinos'),
+          ],
+        ),
         actions: [
           if (_importing)
             const Padding(
@@ -131,19 +140,20 @@ class _EmptyState extends StatelessWidget {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(
-            Icons.fitness_center,
-            size: 72,
-            color: Theme.of(context).colorScheme.outline,
+          // Full logo with athlete + "OVERLOAD" text
+          SvgPicture.asset(
+            'assets/images/logo.svg',
+            width: 280,
+            height: 280,
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 8),
           Text(
             'Nenhum treino ainda',
             style: Theme.of(context).textTheme.titleMedium?.copyWith(
                   color: Theme.of(context).colorScheme.outline,
                 ),
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: 6),
           Text(
             'Toque em "+ Novo Treino" para começar',
             style: Theme.of(context).textTheme.bodySmall?.copyWith(

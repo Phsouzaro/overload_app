@@ -1,0 +1,161 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <!-- Background gradient: deep dark navy -->
+    <linearGradient id="bg" x1="0" y1="0" x2="512" y2="512" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#0d0d1f"/>
+      <stop offset="100%" stop-color="#1a1040"/>
+    </linearGradient>
+
+    <!-- Plate gradient: vibrant red → orange -->
+    <linearGradient id="plate" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#ff3d3d"/>
+      <stop offset="100%" stop-color="#c0200a"/>
+    </linearGradient>
+    <linearGradient id="plate2" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#ff7800"/>
+      <stop offset="100%" stop-color="#c05200"/>
+    </linearGradient>
+
+    <!-- Glow filter for figure -->
+    <filter id="figureGlow" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="6" result="blur"/>
+      <feMerge>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+
+    <!-- Subtle shadow on plates -->
+    <filter id="plateShadow" x="-10%" y="-5%" width="120%" height="110%">
+      <feDropShadow dx="2" dy="2" stdDeviation="3" flood-color="#000" flood-opacity="0.5"/>
+    </filter>
+  </defs>
+
+  <!-- ═══════════════════════ BACKGROUND ═══════════════════════ -->
+  <rect width="512" height="512" rx="88" fill="url(#bg)"/>
+
+  <!-- Subtle warm glow behind the bar zone -->
+  <ellipse cx="256" cy="205" rx="230" ry="55" fill="#ff4400" opacity="0.07"/>
+  <!-- Subtle cool glow behind legs -->
+  <ellipse cx="256" cy="390" rx="180" ry="80" fill="#4444ff" opacity="0.04"/>
+
+  <!-- ═══════════════════════ BARBELL ═══════════════════════ -->
+
+  <!-- Outer bar sleeves -->
+  <rect x="54"  y="192" width="68" height="12" rx="6" fill="#888"/>
+  <rect x="390" y="192" width="68" height="12" rx="6" fill="#888"/>
+
+  <!-- Shaft (center portion between collars) -->
+  <rect x="122" y="194" width="268" height="8" rx="4" fill="#bbb"/>
+
+  <!-- LEFT plates group -->
+  <g filter="url(#plateShadow)">
+    <!-- Large outer plate -->
+    <rect x="54" y="162" width="32" height="72" rx="9" fill="url(#plate)"/>
+    <!-- Rim highlight -->
+    <rect x="54" y="162" width="32" height="8"  rx="9" fill="#ff6666" opacity="0.6"/>
+    <!-- Inner plate (slightly smaller, orange) -->
+    <rect x="86" y="168" width="18" height="60" rx="6" fill="url(#plate2)"/>
+    <rect x="86" y="168" width="18" height="6"  rx="6" fill="#ffaa55" opacity="0.6"/>
+  </g>
+
+  <!-- LEFT collar -->
+  <rect x="104" y="186" width="12" height="24" rx="3" fill="#666"/>
+  <rect x="104" y="186" width="12" height="4"  rx="3" fill="#999"/>
+
+  <!-- RIGHT plates group (mirrored) -->
+  <g filter="url(#plateShadow)">
+    <rect x="426" y="162" width="32" height="72" rx="9" fill="url(#plate)"/>
+    <rect x="426" y="162" width="32" height="8"  rx="9" fill="#ff6666" opacity="0.6"/>
+    <rect x="408" y="168" width="18" height="60" rx="6" fill="url(#plate2)"/>
+    <rect x="408" y="168" width="18" height="6"  rx="6" fill="#ffaa55" opacity="0.6"/>
+  </g>
+
+  <!-- RIGHT collar -->
+  <rect x="396" y="186" width="12" height="24" rx="3" fill="#666"/>
+  <rect x="396" y="186" width="12" height="4"  rx="3" fill="#999"/>
+
+  <!-- ═══════════════════════ ATHLETE ═══════════════════════ -->
+  <g filter="url(#figureGlow)">
+
+    <!-- HEAD -->
+    <circle cx="256" cy="108" r="34" fill="white"/>
+    <!-- Subtle hair/cap top -->
+    <ellipse cx="256" cy="79" rx="28" ry="12" fill="#e0e0e0"/>
+
+    <!-- NECK -->
+    <rect x="244" y="140" width="24" height="26" rx="7" fill="white"/>
+
+    <!-- UPPER TRAPS / SHOULDERS (wide block, bar rests here) -->
+    <!-- This sits just above the bar -->
+    <rect x="192" y="160" width="128" height="28" rx="14" fill="white"/>
+
+    <!-- LEFT ARM — shoulder to bar grip (slightly bent elbow look) -->
+    <polyline
+      points="204,173  175,185  158,198"
+      stroke="white" stroke-width="18" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+
+    <!-- RIGHT ARM -->
+    <polyline
+      points="308,173  337,185  354,198"
+      stroke="white" stroke-width="18" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+
+    <!-- HANDS on bar (knuckle circles) -->
+    <circle cx="156" cy="199" r="10" fill="white"/>
+    <circle cx="356" cy="199" r="10" fill="white"/>
+
+    <!-- TORSO — tapered trapezoid (wider at shoulders, narrower at hips) -->
+    <!-- Leaning slightly forward as in a squat -->
+    <path d="M 220 188  L 238 320  L 274 320  L 292 188 Z" fill="white"/>
+
+    <!-- LIFTING BELT accent (red stripe across torso) -->
+    <rect x="235" y="286" width="42" height="20" rx="7" fill="#ff3d3d" opacity="0.85"/>
+    <rect x="235" y="289" width="42" height="4"  rx="3" fill="#ff7070" opacity="0.5"/>
+
+    <!-- HIPS (rounded bottom of torso in deep squat) -->
+    <ellipse cx="256" cy="323" rx="44" ry="16" fill="white"/>
+
+    <!-- LEFT THIGH — going out and down (squat stance) -->
+    <line x1="242" y1="330" x2="168" y2="382"
+          stroke="white" stroke-width="24" stroke-linecap="round"/>
+
+    <!-- LEFT SHIN — going slightly back/down -->
+    <line x1="168" y1="382" x2="150" y2="452"
+          stroke="white" stroke-width="20" stroke-linecap="round"/>
+
+    <!-- LEFT FOOT -->
+    <ellipse cx="141" cy="457" rx="34" ry="13" fill="white" transform="rotate(-8 141 457)"/>
+
+    <!-- RIGHT THIGH -->
+    <line x1="270" y1="330" x2="344" y2="382"
+          stroke="white" stroke-width="24" stroke-linecap="round"/>
+
+    <!-- RIGHT SHIN -->
+    <line x1="344" y1="382" x2="362" y2="452"
+          stroke="white" stroke-width="20" stroke-linecap="round"/>
+
+    <!-- RIGHT FOOT -->
+    <ellipse cx="371" cy="457" rx="34" ry="13" fill="white" transform="rotate(8 371 457)"/>
+
+    <!-- KNEE JOINTS (circles for polished look) -->
+    <circle cx="168" cy="382" r="14" fill="white"/>
+    <circle cx="344" cy="382" r="14" fill="white"/>
+
+  </g>
+
+  <!-- ═══════════════════════ FLOOR SHADOW ═══════════════════════ -->
+  <ellipse cx="256" cy="476" rx="155" ry="14" fill="#000" opacity="0.35"/>
+
+  <!-- ═══════════════════════ BRAND TEXT ═══════════════════════ -->
+  <!-- "OVERLOAD" text below figure, bold and spaced -->
+  <text
+    x="256" y="505"
+    font-family="Arial Black, Arial, sans-serif"
+    font-weight="900"
+    font-size="44"
+    letter-spacing="8"
+    text-anchor="middle"
+    fill="white"
+    opacity="0.92">OVERLOAD</text>
+
+</svg>

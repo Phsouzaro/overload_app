@@ -1,6 +1,7 @@
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import 'package:intl/intl.dart';
 import '../../../core/database/app_database.dart';
 import '../../settings/screens/settings_screen.dart';
@@ -30,6 +31,10 @@ class ProfileScreen extends ConsumerWidget {
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
+          // ── Logo banner ──────────────────────────────────────────────
+          _LogoBanner(),
+          const SizedBox(height: 8),
+
           // ── Peso atual ──────────────────────────────────────────────
           recentAsync.when(
             loading: () => const SizedBox(),
@@ -501,6 +506,59 @@ class _EmptyHistory extends StatelessWidget {
           textAlign: TextAlign.center,
           style: TextStyle(color: Theme.of(context).colorScheme.outline),
         ),
+      ),
+    );
+  }
+}
+
+// ── Logo Banner ───────────────────────────────────────────────────────────────
+
+class _LogoBanner extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(20),
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            const Color(0xFF0d0d1f),
+            const Color(0xFF1a1040),
+          ],
+        ),
+      ),
+      padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 24),
+      child: Row(
+        children: [
+          SvgPicture.asset(
+            'assets/images/logo_icon.svg',
+            width: 72,
+            height: 72,
+          ),
+          const SizedBox(width: 20),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'OVERLOAD',
+                style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                      color: Colors.white,
+                      fontWeight: FontWeight.w900,
+                      letterSpacing: 4,
+                    ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                'Registre. Evolua. Supere.',
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: Colors.white60,
+                      letterSpacing: 1,
+                    ),
+              ),
+            ],
+          ),
+        ],
       ),
     );
   }
