@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../../core/utils/unit_converter.dart';
+import '../../settings/providers/settings_provider.dart';
 import '../providers/session_providers.dart';
 
 class SessionSummaryScreen extends ConsumerWidget {
@@ -24,6 +26,7 @@ class SessionSummaryScreen extends ConsumerWidget {
               .getSessionSummary(sessionId),
           builder: (context, snapshot) {
             final data = snapshot.data;
+            final unit = ref.read(settingsProvider).unit;
             return Center(
               child: Padding(
                 padding: const EdgeInsets.all(32),
@@ -65,7 +68,8 @@ class SessionSummaryScreen extends ConsumerWidget {
                           icon: Icons.monitor_weight_outlined,
                           label: 'Volume',
                           value: data != null
-                              ? '${data.totalVolume.toStringAsFixed(0)}kg'
+                              ? UnitConverter.format(data.totalVolume, unit,
+                                  decimals: 0)
                               : '—',
                         ),
                       ],

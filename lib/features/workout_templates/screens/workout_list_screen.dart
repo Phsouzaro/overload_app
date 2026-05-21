@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/database/app_database.dart';
 import '../providers/workout_providers.dart';
+import '../../../features/session_history/screens/session_history_screen.dart';
 import 'archived_workouts_screen.dart';
 import 'workout_detail_screen.dart';
 
@@ -16,6 +17,15 @@ class WorkoutListScreen extends ConsumerWidget {
       appBar: AppBar(
         title: const Text('Meus Treinos'),
         actions: [
+          IconButton(
+            icon: const Icon(Icons.history),
+            tooltip: 'Histórico',
+            onPressed: () => Navigator.push(
+              context,
+              MaterialPageRoute(
+                  builder: (_) => const SessionHistoryScreen()),
+            ),
+          ),
           IconButton(
             icon: const Icon(Icons.archive_outlined),
             tooltip: 'Arquivados',

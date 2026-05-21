@@ -4,6 +4,8 @@ import '../../../core/database/app_database.dart';
 import '../../../core/database/repositories/session_repository.dart';
 import '../../../core/database/tables.dart';
 import '../../../core/utils/one_rm_calculator.dart';
+import '../../../core/utils/unit_converter.dart';
+import '../../settings/providers/settings_provider.dart';
 import '../providers/session_providers.dart';
 import 'set_row_widget.dart';
 
@@ -30,6 +32,7 @@ class ExerciseSessionCard extends ConsumerWidget {
     final prWeight = ref
         .watch(exercisePrWeightProvider(exercise.id))
         .valueOrNull;
+    final unit = ref.watch(settingsProvider).unit;
     final repo = ref.read(sessionRepositoryProvider);
 
     return Card(
@@ -86,7 +89,8 @@ class ExerciseSessionCard extends ConsumerWidget {
                   }
                 }
 
-                final summary = prev.map(_formatSet).join('  ·  ');
+                final summary =
+                    prev.map((s) => _formatSet(s, unit)).join('  ·  ');
                 final cs = Theme.of(context).colorScheme;
 
                 return Padding(
@@ -112,7 +116,7 @@ class ExerciseSessionCard extends ConsumerWidget {
                             borderRadius: BorderRadius.circular(12),
                           ),
                           child: Text(
-                            '↑ ${maxWeight.toStringAsFixed(1)} kg',
+                            '↑ ${UnitConverter.format(maxWeight, unit)}',
                             style: TextStyle(
                               fontSize: 12,
                               fontWeight: FontWeight.bold,
@@ -137,7 +141,7 @@ class ExerciseSessionCard extends ConsumerWidget {
                   children: [
                     const SizedBox(width: 6),
                     Expanded(
-                        child: Text('kg',
+                        child: Text(UnitConverter.label(unit),
                             style: Theme.of(context).textTheme.labelSmall,
                             textAlign: TextAlign.center)),
                     const SizedBox(width: 24),
@@ -167,6 +171,7 @@ class ExerciseSessionCard extends ConsumerWidget {
                             set: e.value,
                             index: e.key + 1,
                             prWeight: prWeight,
+                            unit: unit,
                             hintWeight: e.key < prevSets.length
                                 ? prevSets[e.key].weightKg
                                 : null,
@@ -262,9 +267,10 @@ class ExerciseSessionCard extends ConsumerWidget {
     return '${s ~/ 60}min${s % 60 > 0 ? ' ${s % 60}s' : ''}';
   }
 
-  String _formatSet(SessionSet s) => switch (s.setType) {
-        SetType.weight =>
-          '${s.weightKg?.toStringAsFixed(1) ?? '?'}×${s.reps ?? '?'}',
+  String _formatSet(SessionSet s, WeightUnit unit) => switch (s.setType) {
+        SetType.weight => s.weightKg != null
+            ? '${UnitConverter.toDisplay(s.weightKg!, unit).toStringAsFixed(1)}×${s.reps ?? '?'}'
+            : '?×${s.reps ?? '?'}',
         SetType.time => '${s.durationSeconds ?? '?'}s',
         SetType.bodyweight => '×${s.reps ?? '?'}',
       };

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../../core/database/app_database.dart';
 import '../../../core/database/tables.dart';
+import '../../../core/utils/unit_converter.dart';
 
 class SetRowWidget extends StatefulWidget {
   final SessionSet set;
@@ -9,6 +10,7 @@ class SetRowWidget extends StatefulWidget {
   final double? hintWeight;
   final int? hintReps;
   final int? hintDuration;
+  final WeightUnit unit;
   final Future<void> Function(
     double? weight,
     int? reps,
@@ -28,6 +30,7 @@ class SetRowWidget extends StatefulWidget {
     this.hintWeight,
     this.hintReps,
     this.hintDuration,
+    this.unit = WeightUnit.kg,
   });
 
   @override
@@ -44,11 +47,12 @@ class _SetRowWidgetState extends State<SetRowWidget> {
 
   bool get _isPR {
     if (!_confirmed || _isWarmup) return false;
-    final weight =
+    final display =
         double.tryParse(_weightController.text.replaceAll(',', '.'));
-    if (weight == null || weight <= 0) return false;
+    if (display == null || display <= 0) return false;
+    final weightKg = UnitConverter.fromDisplay(display, widget.unit);
     if (widget.prWeight == null) return true;
-    return weight > widget.prWeight!;
+    return weightKg > widget.prWeight!;
   }
 
   @override
@@ -56,9 +60,13 @@ class _SetRowWidgetState extends State<SetRowWidget> {
     super.initState();
     final s = widget.set;
     _weightController = TextEditingController(
-      text: s.weightKg?.toStringAsFixed(1) ??
-          widget.hintWeight?.toStringAsFixed(1) ??
-          '',
+      text: s.weightKg != null
+          ? UnitConverter.toDisplay(s.weightKg!, widget.unit)
+              .toStringAsFixed(1)
+          : widget.hintWeight != null
+              ? UnitConverter.toDisplay(widget.hintWeight!, widget.unit)
+                  .toStringAsFixed(1)
+              : '',
     );
     _repsController = TextEditingController(
       text: s.reps?.toString() ?? widget.hintReps?.toString() ?? '',
@@ -87,7 +95,9 @@ class _SetRowWidgetState extends State<SetRowWidget> {
     if (widget.hintWeight != oldWidget.hintWeight &&
         widget.hintWeight != null &&
         _weightController.text.isEmpty) {
-      _weightController.text = widget.hintWeight!.toStringAsFixed(1);
+      _weightController.text = UnitConverter.toDisplay(
+              widget.hintWeight!, widget.unit)
+          .toStringAsFixed(1);
     }
     if (widget.hintReps != oldWidget.hintReps &&
         widget.hintReps != null &&
@@ -110,11 +120,14 @@ class _SetRowWidgetState extends State<SetRowWidget> {
   }
 
   Future<void> _confirm() async {
-    final weight = double.tryParse(_weightController.text.replaceAll(',', '.'));
+    final display =
+        double.tryParse(_weightController.text.replaceAll(',', '.'));
+    final weightKg =
+        display != null ? UnitConverter.fromDisplay(display, widget.unit) : null;
     final reps = int.tryParse(_repsController.text);
     final duration = int.tryParse(_durationController.text);
 
-    await widget.onConfirm(weight, reps, duration, _isWarmup, _toFailure);
+    await widget.onConfirm(weightKg, reps, duration, _isWarmup, _toFailure);
     if (mounted) setState(() => _confirmed = true);
   }
 
@@ -160,7 +173,7 @@ class _SetRowWidgetState extends State<SetRowWidget> {
             Expanded(
               child: _NumberField(
                   controller: _weightController,
-                  hint: 'kg',
+                  hint: UnitConverter.label(widget.unit),
                   decimal: true),
             ),
             const Padding(

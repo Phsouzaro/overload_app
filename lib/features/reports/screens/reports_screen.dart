@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/database/app_database.dart';
 import '../../../core/database/repositories/report_repository.dart';
+import '../../../core/utils/unit_converter.dart';
 import '../../exercise_library/providers/exercise_providers.dart';
+import '../../settings/providers/settings_provider.dart';
 import '../../workout_templates/providers/workout_providers.dart';
 import '../providers/report_providers.dart';
 import '../widgets/report_chart.dart';
@@ -85,6 +87,8 @@ class _ExerciseReportTab extends ConsumerWidget {
     final selectedId = ref.watch(reportExerciseIdProvider);
     final selectedPeriod = ref.watch(reportExercisePeriodProvider);
     final progressAsync = ref.watch(exerciseProgressProvider);
+    final unit = ref.watch(settingsProvider).unit;
+    final unitLabel = UnitConverter.label(unit);
 
     return ListView(
       padding: const EdgeInsets.all(16),
@@ -134,10 +138,13 @@ class _ExerciseReportTab extends ConsumerWidget {
                   title: 'Carga Máxima',
                   chart: ReportLineChart(
                     points: points
-                        .map((p) =>
-                            (date: p.date, value: p.maxWeight))
+                        .map((p) => (
+                              date: p.date,
+                              value: UnitConverter.toDisplay(
+                                  p.maxWeight, unit),
+                            ))
                         .toList(),
-                    yLabel: 'kg',
+                    yLabel: unitLabel,
                   ),
                 ),
                 const SizedBox(height: 16),
@@ -145,10 +152,13 @@ class _ExerciseReportTab extends ConsumerWidget {
                   title: 'Volume Total',
                   chart: ReportLineChart(
                     points: points
-                        .map((p) =>
-                            (date: p.date, value: p.volume))
+                        .map((p) => (
+                              date: p.date,
+                              value:
+                                  UnitConverter.toDisplay(p.volume, unit),
+                            ))
                         .toList(),
-                    yLabel: 'kg',
+                    yLabel: unitLabel,
                     color: Theme.of(context).colorScheme.secondary,
                   ),
                 ),
@@ -171,6 +181,8 @@ class _WorkoutReportTab extends ConsumerWidget {
     final selectedId = ref.watch(reportTemplateIdProvider);
     final selectedPeriod = ref.watch(reportWorkoutPeriodProvider);
     final progressAsync = ref.watch(workoutProgressProvider);
+    final unit = ref.watch(settingsProvider).unit;
+    final unitLabel = UnitConverter.label(unit);
 
     return ListView(
       padding: const EdgeInsets.all(16),
@@ -219,10 +231,13 @@ class _WorkoutReportTab extends ConsumerWidget {
                   title: 'Volume por Sessão',
                   chart: ReportLineChart(
                     points: points
-                        .map((p) =>
-                            (date: p.date, value: p.volume))
+                        .map((p) => (
+                              date: p.date,
+                              value:
+                                  UnitConverter.toDisplay(p.volume, unit),
+                            ))
                         .toList(),
-                    yLabel: 'kg',
+                    yLabel: unitLabel,
                   ),
                 ),
                 const SizedBox(height: 16),
@@ -241,7 +256,7 @@ class _WorkoutReportTab extends ConsumerWidget {
                 ),
                 const SizedBox(height: 16),
                 // Tabela de sessões
-                _SessionTable(points: points),
+                _SessionTable(points: points, unit: unit),
               ],
             ),
           ),
@@ -319,7 +334,8 @@ class _SelectPrompt extends StatelessWidget {
 
 class _SessionTable extends StatelessWidget {
   final List<WorkoutSessionPoint> points;
-  const _SessionTable({required this.points});
+  final WeightUnit unit;
+  const _SessionTable({required this.points, required this.unit});
 
   @override
   Widget build(BuildContext context) {
@@ -350,7 +366,7 @@ class _SessionTable extends StatelessWidget {
                       ),
                       const SizedBox(width: 16),
                       Text(
-                        '${p.volume.toStringAsFixed(0)} kg vol.',
+                        '${UnitConverter.toDisplay(p.volume, unit).toStringAsFixed(0)} ${UnitConverter.label(unit)} vol.',
                         style: Theme.of(context)
                             .textTheme
                             .bodySmall

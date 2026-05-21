@@ -3,6 +3,18 @@ import 'dart:math';
 import 'package:drift/drift.dart';
 import '../app_database.dart';
 
+class ExerciseHistoryEntry {
+  final DateTime date;
+  final String templateName;
+  final List<SessionSet> sets;
+
+  const ExerciseHistoryEntry({
+    required this.date,
+    required this.templateName,
+    required this.sets,
+  });
+}
+
 class ExerciseProgressPoint {
   final DateTime date;
   final double maxWeight;
@@ -87,6 +99,48 @@ class ReportRepository {
       ..sort((a, b) => a.date.compareTo(b.date));
 
     return list;
+  }
+
+  Future<List<ExerciseHistoryEntry>> getExerciseHistory(int exerciseId) async {
+    final query = _db.select(_db.sessionExercises).join([
+      innerJoin(
+        _db.sessions,
+        _db.sessions.id.equalsExp(_db.sessionExercises.sessionId),
+      ),
+      innerJoin(
+        _db.workoutTemplates,
+        _db.workoutTemplates.id.equalsExp(_db.sessions.templateId),
+      ),
+    ])
+      ..where(
+        _db.sessionExercises.exerciseId.equals(exerciseId) &
+            _db.sessions.finishedAt.isNotNull(),
+      )
+      ..orderBy([OrderingTerm.desc(_db.sessions.startedAt)]);
+
+    final rows = await query.get();
+    final result = <ExerciseHistoryEntry>[];
+
+    for (final row in rows) {
+      final session = row.readTable(_db.sessions);
+      final templateName = row.readTable(_db.workoutTemplates).name;
+      final se = row.readTable(_db.sessionExercises);
+
+      final sets = await (_db.select(_db.sessionSets)
+            ..where((s) => s.sessionExerciseId.equals(se.id))
+            ..orderBy([(s) => OrderingTerm.asc(s.position)]))
+          .get();
+
+      if (sets.isNotEmpty) {
+        result.add(ExerciseHistoryEntry(
+          date: session.startedAt,
+          templateName: templateName,
+          sets: sets,
+        ));
+      }
+    }
+
+    return result;
   }
 
   Future<double?> getExerciseMaxWeight(int exerciseId) async {

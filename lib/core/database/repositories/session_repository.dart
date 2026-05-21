@@ -14,6 +14,23 @@ class SessionExerciseWithExercise {
   });
 }
 
+class FinishedSessionSummary {
+  final Session session;
+  final String templateName;
+
+  const FinishedSessionSummary({
+    required this.session,
+    required this.templateName,
+  });
+}
+
+class SessionSetDetail {
+  final Exercise exercise;
+  final List<SessionSet> sets;
+
+  const SessionSetDetail({required this.exercise, required this.sets});
+}
+
 class SessionRepository {
   final AppDatabase _db;
 
@@ -174,6 +191,50 @@ class SessionRepository {
               s.isWarmup.equals(false))
           ..orderBy([(s) => OrderingTerm.asc(s.position)]))
         .get();
+  }
+
+  Stream<List<FinishedSessionSummary>> watchFinishedSessions() {
+    final query = _db.select(_db.sessions).join([
+      innerJoin(
+        _db.workoutTemplates,
+        _db.workoutTemplates.id.equalsExp(_db.sessions.templateId),
+      ),
+    ])
+      ..where(_db.sessions.finishedAt.isNotNull())
+      ..orderBy([OrderingTerm.desc(_db.sessions.startedAt)]);
+
+    return query.watch().map((rows) => rows
+        .map((row) => FinishedSessionSummary(
+              session: row.readTable(_db.sessions),
+              templateName: row.readTable(_db.workoutTemplates).name,
+            ))
+        .toList());
+  }
+
+  Future<List<SessionSetDetail>> getSessionDetail(int sessionId) async {
+    final query = _db.select(_db.sessionExercises).join([
+      innerJoin(
+        _db.exercises,
+        _db.exercises.id.equalsExp(_db.sessionExercises.exerciseId),
+      ),
+    ])
+      ..where(_db.sessionExercises.sessionId.equals(sessionId))
+      ..orderBy([OrderingTerm.asc(_db.sessionExercises.position)]);
+
+    final rows = await query.get();
+    final result = <SessionSetDetail>[];
+
+    for (final row in rows) {
+      final exercise = row.readTable(_db.exercises);
+      final seId = row.readTable(_db.sessionExercises).id;
+      final sets = await (_db.select(_db.sessionSets)
+            ..where((s) => s.sessionExerciseId.equals(seId))
+            ..orderBy([(s) => OrderingTerm.asc(s.position)]))
+          .get();
+      result.add(SessionSetDetail(exercise: exercise, sets: sets));
+    }
+
+    return result;
   }
 
   Future<({int totalSets, double totalVolume})> getSessionSummary(

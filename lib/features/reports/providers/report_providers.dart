@@ -27,6 +27,12 @@ final exportServiceProvider = Provider<ExportService>((ref) {
   return ExportService(ref.watch(databaseProvider));
 });
 
+final exerciseHistoryProvider =
+    FutureProvider.autoDispose.family<List<ExerciseHistoryEntry>, int>(
+        (ref, exerciseId) {
+  return ref.watch(reportRepositoryProvider).getExerciseHistory(exerciseId);
+});
+
 // ── Exercício ─────────────────────────────────────────────────────────────────
 
 final reportExerciseIdProvider = StateProvider<int?>((ref) => null);

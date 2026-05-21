@@ -5,6 +5,7 @@ import '../../../core/database/app_database.dart';
 import '../../../core/database/tables.dart';
 import '../providers/exercise_providers.dart';
 import 'add_exercise_screen.dart';
+import 'exercise_history_screen.dart';
 
 class ExerciseLibraryScreen extends ConsumerStatefulWidget {
   const ExerciseLibraryScreen({super.key});
@@ -182,6 +183,14 @@ class _ExerciseCard extends ConsumerWidget {
         onSelected: (action) => _handleAction(context, ref, action),
         itemBuilder: (_) => const [
           PopupMenuItem(
+            value: _ExerciseAction.history,
+            child: ListTile(
+              leading: Icon(Icons.history),
+              title: Text('Histórico'),
+              contentPadding: EdgeInsets.zero,
+            ),
+          ),
+          PopupMenuItem(
             value: _ExerciseAction.edit,
             child: ListTile(
               leading: Icon(Icons.edit_outlined),
@@ -217,6 +226,13 @@ class _ExerciseCard extends ConsumerWidget {
   ) async {
     final repo = ref.read(exerciseRepositoryProvider);
     switch (action) {
+      case _ExerciseAction.history:
+        await Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => ExerciseHistoryScreen(exercise: exercise),
+          ),
+        );
       case _ExerciseAction.edit:
         await Navigator.push(
           context,
@@ -255,4 +271,4 @@ class _ExerciseCard extends ConsumerWidget {
   }
 }
 
-enum _ExerciseAction { edit, archive }
+enum _ExerciseAction { history, edit, archive }

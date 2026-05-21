@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/constants/muscle_groups.dart';
 import '../../../core/database/app_database.dart';
 import '../../../core/database/tables.dart';
+import '../../settings/providers/settings_provider.dart';
 import '../providers/exercise_providers.dart';
 
 class AddExerciseScreen extends ConsumerStatefulWidget {
@@ -30,7 +31,8 @@ class _AddExerciseScreenState extends ConsumerState<AddExerciseScreen> {
     _nameController = TextEditingController(text: e?.name ?? '');
     _selectedMuscleGroup = e?.muscleGroup ?? kMuscleGroups.first;
     _selectedSetType = e?.setType ?? SetType.weight;
-    _restSeconds = e?.restSeconds ?? 90;
+    _restSeconds = e?.restSeconds ??
+        ref.read(settingsProvider).defaultRestSeconds;
   }
 
   @override
