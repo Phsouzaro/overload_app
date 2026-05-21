@@ -6,17 +6,80 @@ import '../../../features/session_history/screens/session_history_screen.dart';
 import 'archived_workouts_screen.dart';
 import 'workout_detail_screen.dart';
 
-class WorkoutListScreen extends ConsumerWidget {
+// ── Import state ──────────────────────────────────────────────────────────────
+// Kept simple as a local bool; no need for a global provider.
+
+
+class WorkoutListScreen extends ConsumerStatefulWidget {
   const WorkoutListScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<WorkoutListScreen> createState() => _WorkoutListScreenState();
+}
+
+class _WorkoutListScreenState extends ConsumerState<WorkoutListScreen> {
+  bool _importing = false;
+
+  Future<void> _showCreateDialog() async {
+    final name = await _showNameDialog(context, title: 'Novo Treino');
+    if (name != null && name.isNotEmpty) {
+      await ref.read(workoutRepositoryProvider).createTemplate(name);
+    }
+  }
+
+  Future<void> _import() async {
+    setState(() => _importing = true);
+    try {
+      final result =
+          await ref.read(importServiceProvider).importTemplate();
+      if (result == null) return; // user cancelled
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              '"${result.templateName}" importado! '
+              '${result.exercisesAdded > 0 ? '${result.exercisesAdded} exercício(s) criado(s). ' : ''}'
+              '${result.exercisesReused > 0 ? '${result.exercisesReused} reutilizado(s).' : ''}',
+            ),
+            duration: const Duration(seconds: 4),
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Erro ao importar: $e')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _importing = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final templatesAsync = ref.watch(workoutTemplatesProvider);
 
     return Scaffold(
       appBar: AppBar(
         title: const Text('Meus Treinos'),
         actions: [
+          if (_importing)
+            const Padding(
+              padding: EdgeInsets.all(16),
+              child: SizedBox(
+                width: 20,
+                height: 20,
+                child: CircularProgressIndicator(strokeWidth: 2),
+              ),
+            )
+          else
+            IconButton(
+              icon: const Icon(Icons.download_outlined),
+              tooltip: 'Importar treino',
+              onPressed: _import,
+            ),
           IconButton(
             icon: const Icon(Icons.history),
             tooltip: 'Histórico',
@@ -47,23 +110,15 @@ class WorkoutListScreen extends ConsumerWidget {
                 itemCount: templates.length,
                 itemBuilder: (context, index) => _TemplateCard(
                   template: templates[index],
-                  ref: ref,
                 ),
               ),
       ),
       floatingActionButton: FloatingActionButton.extended(
-        onPressed: () => _showCreateDialog(context, ref),
+        onPressed: _showCreateDialog,
         icon: const Icon(Icons.add),
         label: const Text('Novo Treino'),
       ),
     );
-  }
-
-  Future<void> _showCreateDialog(BuildContext context, WidgetRef ref) async {
-    final name = await _showNameDialog(context, title: 'Novo Treino');
-    if (name != null && name.isNotEmpty) {
-      await ref.read(workoutRepositoryProvider).createTemplate(name);
-    }
   }
 }
 
@@ -103,9 +158,8 @@ class _EmptyState extends StatelessWidget {
 
 class _TemplateCard extends ConsumerWidget {
   final WorkoutTemplate template;
-  final WidgetRef ref;
 
-  const _TemplateCard({required this.template, required this.ref});
+  const _TemplateCard({required this.template});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -145,13 +199,21 @@ class _TemplateCard extends ConsumerWidget {
           ),
         ),
         trailing: PopupMenuButton<_TemplateAction>(
-          onSelected: (action) => _handleAction(context, action),
+          onSelected: (action) => _handleAction(context, ref, action),
           itemBuilder: (_) => const [
             PopupMenuItem(
               value: _TemplateAction.rename,
               child: ListTile(
                 leading: Icon(Icons.edit_outlined),
                 title: Text('Renomear'),
+                contentPadding: EdgeInsets.zero,
+              ),
+            ),
+            PopupMenuItem(
+              value: _TemplateAction.share,
+              child: ListTile(
+                leading: Icon(Icons.share_outlined),
+                title: Text('Compartilhar'),
                 contentPadding: EdgeInsets.zero,
               ),
             ),
@@ -176,7 +238,8 @@ class _TemplateCard extends ConsumerWidget {
     );
   }
 
-  Future<void> _handleAction(BuildContext context, _TemplateAction action) async {
+  Future<void> _handleAction(
+      BuildContext context, WidgetRef ref, _TemplateAction action) async {
     final repo = ref.read(workoutRepositoryProvider);
     switch (action) {
       case _TemplateAction.rename:
@@ -187,6 +250,18 @@ class _TemplateCard extends ConsumerWidget {
         );
         if (name != null && name.isNotEmpty) {
           await repo.renameTemplate(template.id, name);
+        }
+      case _TemplateAction.share:
+        try {
+          await ref
+              .read(templateExportServiceProvider)
+              .exportTemplate(template.id);
+        } catch (e) {
+          if (context.mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text('Erro ao compartilhar: $e')),
+            );
+          }
         }
       case _TemplateAction.archive:
         final confirm = await _confirmArchive(context);
@@ -224,7 +299,7 @@ class _TemplateCard extends ConsumerWidget {
   }
 }
 
-enum _TemplateAction { rename, archive }
+enum _TemplateAction { rename, share, archive }
 
 Future<String?> _showNameDialog(
   BuildContext context, {

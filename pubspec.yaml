@@ -54,6 +54,9 @@ dependencies:
   # Configurações persistentes
   shared_preferences: ^2.3.0
 
+  # Import de arquivos
+  file_picker: ^10.0.0
+
   # Utilitários
   wakelock_plus: ^1.2.8
   intl: ^0.20.0
