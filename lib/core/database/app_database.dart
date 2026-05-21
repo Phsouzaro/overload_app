@@ -18,7 +18,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase() : super(_openConnection());
 
   @override
-  int get schemaVersion => 1;
+  int get schemaVersion => 2;
 
   @override
   MigrationStrategy get migration {
@@ -26,6 +26,22 @@ class AppDatabase extends _$AppDatabase {
       onCreate: (m) async {
         await m.createAll();
         await batch((b) => b.insertAll(exercises, seedExercises));
+      },
+      onUpgrade: (m, from, to) async {
+        if (from < 2) {
+          // Add position column (defaults to 0 for existing rows)
+          await m.addColumn(workoutTemplates, workoutTemplates.position);
+
+          // Assign sequential positions ordered by creation date
+          final rows = await (select(workoutTemplates)
+                ..orderBy([(t) => OrderingTerm.asc(t.createdAt)]))
+              .get();
+          for (var i = 0; i < rows.length; i++) {
+            await (update(workoutTemplates)
+                  ..where((t) => t.id.equals(rows[i].id)))
+                .write(WorkoutTemplatesCompanion(position: Value(i)));
+          }
+        }
       },
       beforeOpen: (_) async {
         await customStatement('PRAGMA foreign_keys = ON');

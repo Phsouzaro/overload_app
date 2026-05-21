@@ -17,6 +17,7 @@ class WorkoutTemplates extends Table {
   TextColumn get name => text()();
   BoolColumn get isArchived => boolean().withDefault(const Constant(false))();
   DateTimeColumn get createdAt => dateTime().withDefault(currentDateAndTime)();
+  IntColumn get position => integer().withDefault(const Constant(0))();
 }
 
 class TemplateExercises extends Table {

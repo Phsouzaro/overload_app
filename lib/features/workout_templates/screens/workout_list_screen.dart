@@ -114,11 +114,29 @@ class _WorkoutListScreenState extends ConsumerState<WorkoutListScreen> {
         error: (e, _) => Center(child: Text('Erro: $e')),
         data: (templates) => templates.isEmpty
             ? const _EmptyState()
-            : ListView.builder(
+            : ReorderableListView.builder(
                 padding: const EdgeInsets.symmetric(vertical: 8),
                 itemCount: templates.length,
                 itemBuilder: (context, index) => _TemplateCard(
+                  key: ValueKey(templates[index].id),
                   template: templates[index],
+                ),
+                onReorder: (oldIndex, newIndex) {
+                  // Standard ReorderableListView index correction
+                  if (newIndex > oldIndex) newIndex--;
+                  final reordered = List<WorkoutTemplate>.from(templates);
+                  final item = reordered.removeAt(oldIndex);
+                  reordered.insert(newIndex, item);
+                  ref
+                      .read(workoutRepositoryProvider)
+                      .reorderTemplates(reordered);
+                },
+                // Custom drag handle style
+                proxyDecorator: (child, index, animation) => Material(
+                  elevation: 6,
+                  borderRadius: BorderRadius.circular(12),
+                  shadowColor: Theme.of(context).colorScheme.shadow,
+                  child: child,
                 ),
               ),
       ),
@@ -169,12 +187,12 @@ class _EmptyState extends StatelessWidget {
 class _TemplateCard extends ConsumerWidget {
   final WorkoutTemplate template;
 
-  const _TemplateCard({required this.template});
+  const _TemplateCard({super.key, required this.template});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     return Dismissible(
-      key: ValueKey(template.id),
+      key: Key('dismiss_${template.id}'),
       direction: DismissDirection.endToStart,
       background: Container(
         alignment: Alignment.centerRight,
@@ -194,19 +212,31 @@ class _TemplateCard extends ConsumerWidget {
       },
       child: ListTile(
         contentPadding:
-            const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+            const EdgeInsets.only(left: 8, right: 8, top: 4, bottom: 4),
         title: Text(
           template.name,
           style: Theme.of(context).textTheme.titleMedium,
         ),
-        leading: CircleAvatar(
-          backgroundColor:
-              Theme.of(context).colorScheme.primaryContainer,
-          child: Icon(
-            Icons.fitness_center,
-            color: Theme.of(context).colorScheme.onPrimaryContainer,
-            size: 20,
-          ),
+        leading: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // Drag handle — visual cue + long-press initiates reorder
+            Icon(
+              Icons.drag_handle_rounded,
+              color: Theme.of(context).colorScheme.outline,
+              size: 20,
+            ),
+            const SizedBox(width: 8),
+            CircleAvatar(
+              backgroundColor:
+                  Theme.of(context).colorScheme.primaryContainer,
+              child: Icon(
+                Icons.fitness_center,
+                color: Theme.of(context).colorScheme.onPrimaryContainer,
+                size: 20,
+              ),
+            ),
+          ],
         ),
         trailing: PopupMenuButton<_TemplateAction>(
           onSelected: (action) => _handleAction(context, ref, action),

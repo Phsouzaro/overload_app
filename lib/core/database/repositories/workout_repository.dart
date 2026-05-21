@@ -24,8 +24,23 @@ class WorkoutRepository {
   Stream<List<WorkoutTemplate>> watchActiveTemplates() {
     return (_db.select(_db.workoutTemplates)
           ..where((t) => t.isArchived.equals(false))
-          ..orderBy([(t) => OrderingTerm.asc(t.createdAt)]))
+          ..orderBy([
+            (t) => OrderingTerm.asc(t.position),
+            (t) => OrderingTerm.asc(t.createdAt), // tiebreaker
+          ]))
         .watch();
+  }
+
+  Future<void> reorderTemplates(List<WorkoutTemplate> templates) {
+    return _db.batch((batch) {
+      for (var i = 0; i < templates.length; i++) {
+        batch.update(
+          _db.workoutTemplates,
+          WorkoutTemplatesCompanion(position: Value(i)),
+          where: (t) => t.id.equals(templates[i].id),
+        );
+      }
+    });
   }
 
   Future<WorkoutTemplate?> getTemplate(int id) {
