@@ -36,6 +36,11 @@ class ExerciseRepository {
         .get();
   }
 
+  Future<Exercise?> getById(int id) {
+    return (_db.select(_db.exercises)..where((e) => e.id.equals(id)))
+        .getSingleOrNull();
+  }
+
   Future<int> createExercise({
     required String name,
     required String muscleGroup,
