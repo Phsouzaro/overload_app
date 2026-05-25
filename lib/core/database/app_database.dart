@@ -1,5 +1,6 @@
 import 'package:drift/drift.dart';
 import 'package:drift_flutter/drift_flutter.dart';
+import 'package:flutter/foundation.dart' show visibleForTesting;
 import 'tables.dart';
 
 part 'app_database.g.dart';
@@ -16,6 +17,10 @@ part 'seed_data.dart';
 ])
 class AppDatabase extends _$AppDatabase {
   AppDatabase() : super(_openConnection());
+
+  /// Construtor para testes: aceita qualquer executor (ex: NativeDatabase.memory()).
+  @visibleForTesting
+  AppDatabase.forTesting(QueryExecutor e) : super(e);
 
   @override
   int get schemaVersion => 2;

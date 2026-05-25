@@ -38,10 +38,10 @@ class ImportService {
     if (path == null) return null;
 
     final content = await File(path).readAsString();
-    return _parseAndImport(content);
+    return parseAndImport(content);
   }
 
-  Future<ImportResult> _parseAndImport(String content) async {
+  Future<ImportResult> parseAndImport(String content) async {
     final Map<String, dynamic> json = jsonDecode(content);
 
     final version = json['version'] as int? ?? 1;
