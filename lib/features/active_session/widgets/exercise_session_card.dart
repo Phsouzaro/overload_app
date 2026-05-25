@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:intl/intl.dart';
 import '../../../core/database/app_database.dart';
 import '../../../core/database/repositories/session_repository.dart';
 import '../../../core/database/tables.dart';
 import '../../../core/utils/one_rm_calculator.dart';
 import '../../../core/utils/unit_converter.dart';
+import '../../reports/providers/report_providers.dart';
 import '../../settings/providers/settings_provider.dart';
 import '../providers/session_providers.dart';
 import 'set_row_widget.dart';
@@ -66,6 +68,21 @@ class ExerciseSessionCard extends ConsumerWidget {
                     ],
                   ),
                 ),
+                // ── Botão de histórico ──────────────────────────────────
+                IconButton(
+                  icon: Icon(
+                    Icons.history_rounded,
+                    size: 20,
+                    color: Theme.of(context).colorScheme.primary,
+                  ),
+                  tooltip: 'Histórico do exercício',
+                  visualDensity: VisualDensity.compact,
+                  padding: EdgeInsets.zero,
+                  constraints:
+                      const BoxConstraints(minWidth: 32, minHeight: 32),
+                  onPressed: () => _showHistorySheet(context, ref, unit),
+                ),
+                const SizedBox(width: 4),
                 const Icon(Icons.timer_outlined, size: 14),
                 const SizedBox(width: 4),
                 Text(_formatRest(exercise.restSeconds),
@@ -273,5 +290,301 @@ class ExerciseSessionCard extends ConsumerWidget {
             : '?×${s.reps ?? '?'}',
         SetType.time => '${s.durationSeconds ?? '?'}s',
         SetType.bodyweight => '×${s.reps ?? '?'}',
+      };
+
+  void _showHistorySheet(
+      BuildContext context, WidgetRef ref, WeightUnit unit) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (_) => _ExerciseHistorySheet(
+        exercise: item.exercise,
+        unit: unit,
+      ),
+    );
+  }
+}
+
+// ── Bottom sheet: histórico completo do exercício ─────────────────────────────
+
+class _ExerciseHistorySheet extends ConsumerWidget {
+  final Exercise exercise;
+  final WeightUnit unit;
+
+  const _ExerciseHistorySheet({
+    required this.exercise,
+    required this.unit,
+  });
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final historyAsync = ref.watch(exerciseHistoryProvider(exercise.id));
+    final cs = Theme.of(context).colorScheme;
+
+    return DraggableScrollableSheet(
+      expand: false,
+      initialChildSize: 0.6,
+      minChildSize: 0.4,
+      maxChildSize: 0.92,
+      builder: (context, scrollController) => Column(
+        children: [
+          // Handle
+          Center(
+            child: Container(
+              width: 40,
+              height: 4,
+              margin: const EdgeInsets.symmetric(vertical: 12),
+              decoration: BoxDecoration(
+                color: cs.outlineVariant,
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+          ),
+
+          // Título
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 0, 20, 4),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        exercise.name,
+                        style: Theme.of(context).textTheme.titleLarge,
+                      ),
+                      Text(
+                        exercise.muscleGroup,
+                        style: Theme.of(context)
+                            .textTheme
+                            .bodySmall
+                            ?.copyWith(color: cs.outline),
+                      ),
+                    ],
+                  ),
+                ),
+                Icon(Icons.history_rounded, color: cs.primary),
+              ],
+            ),
+          ),
+
+          const Divider(height: 16),
+
+          // Lista de sessões
+          Expanded(
+            child: historyAsync.when(
+              loading: () =>
+                  const Center(child: CircularProgressIndicator()),
+              error: (e, _) => Center(child: Text('Erro: $e')),
+              data: (entries) {
+                if (entries.isEmpty) {
+                  return Center(
+                    child: Padding(
+                      padding: const EdgeInsets.all(32),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(Icons.inbox_outlined,
+                              size: 48, color: cs.outline),
+                          const SizedBox(height: 12),
+                          Text(
+                            'Nenhum histórico ainda.\nConclua um treino para ver as cargas aqui.',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(color: cs.outline),
+                          ),
+                        ],
+                      ),
+                    ),
+                  );
+                }
+
+                return ListView.separated(
+                  controller: scrollController,
+                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
+                  itemCount: entries.length,
+                  separatorBuilder: (_, __) => const Divider(height: 1),
+                  itemBuilder: (context, index) {
+                    final entry = entries[index];
+                    final workingSets = entry.sets
+                        .where((s) => !s.isWarmup)
+                        .toList();
+                    final warmupSets = entry.sets
+                        .where((s) => s.isWarmup)
+                        .toList();
+
+                    // Maior carga da sessão (não-aquecimento)
+                    double? maxWeight;
+                    for (final s in workingSets) {
+                      if (s.weightKg != null) {
+                        if (maxWeight == null || s.weightKg! > maxWeight) {
+                          maxWeight = s.weightKg!;
+                        }
+                      }
+                    }
+
+                    return Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          // Data + treino + PR chip
+                          Row(
+                            children: [
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment:
+                                      CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      _formatDate(entry.date),
+                                      style: Theme.of(context)
+                                          .textTheme
+                                          .labelMedium
+                                          ?.copyWith(
+                                              fontWeight: FontWeight.w600),
+                                    ),
+                                    Text(
+                                      entry.templateName,
+                                      style: Theme.of(context)
+                                          .textTheme
+                                          .bodySmall
+                                          ?.copyWith(color: cs.outline),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              if (maxWeight != null)
+                                Container(
+                                  padding: const EdgeInsets.symmetric(
+                                      horizontal: 8, vertical: 3),
+                                  decoration: BoxDecoration(
+                                    color: cs.primaryContainer,
+                                    borderRadius: BorderRadius.circular(10),
+                                  ),
+                                  child: Text(
+                                    '↑ ${UnitConverter.format(maxWeight, unit)}',
+                                    style: TextStyle(
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.bold,
+                                      color: cs.onPrimaryContainer,
+                                    ),
+                                  ),
+                                ),
+                            ],
+                          ),
+                          const SizedBox(height: 8),
+
+                          // Séries de trabalho
+                          Wrap(
+                            spacing: 6,
+                            runSpacing: 6,
+                            children: [
+                              ...workingSets.map((s) => _SetChip(
+                                    set: s,
+                                    unit: unit,
+                                    isWarmup: false,
+                                    cs: cs,
+                                  )),
+                              if (warmupSets.isNotEmpty)
+                                ...warmupSets.map((s) => _SetChip(
+                                      set: s,
+                                      unit: unit,
+                                      isWarmup: true,
+                                      cs: cs,
+                                    )),
+                            ],
+                          ),
+                        ],
+                      ),
+                    );
+                  },
+                );
+              },
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  String _formatDate(DateTime d) {
+    final now = DateTime.now();
+    final diff = now.difference(d).inDays;
+    if (diff == 0) return 'Hoje';
+    if (diff == 1) return 'Ontem';
+    if (diff < 7) return 'há $diff dias';
+    return DateFormat('dd/MM/yyyy').format(d);
+  }
+}
+
+class _SetChip extends StatelessWidget {
+  final SessionSet set;
+  final WeightUnit unit;
+  final bool isWarmup;
+  final ColorScheme cs;
+
+  const _SetChip({
+    required this.set,
+    required this.unit,
+    required this.isWarmup,
+    required this.cs,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final label = _label();
+    if (label == null) return const SizedBox.shrink();
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+      decoration: BoxDecoration(
+        color: isWarmup
+            ? cs.tertiaryContainer.withValues(alpha: 0.5)
+            : cs.surfaceContainerHighest,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(
+          color: isWarmup
+              ? cs.tertiary.withValues(alpha: 0.4)
+              : cs.outlineVariant,
+          width: 1,
+        ),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (isWarmup) ...[
+            Icon(Icons.whatshot, size: 11, color: cs.tertiary),
+            const SizedBox(width: 3),
+          ],
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w500,
+              color: isWarmup ? cs.tertiary : cs.onSurface,
+            ),
+          ),
+          if (set.toFailure) ...[
+            const SizedBox(width: 3),
+            Icon(Icons.bolt, size: 11, color: cs.error),
+          ],
+        ],
+      ),
+    );
+  }
+
+  String? _label() => switch (set.setType) {
+        SetType.weight => set.weightKg != null && set.reps != null
+            ? '${UnitConverter.toDisplay(set.weightKg!, unit).toStringAsFixed(1)} ${UnitConverter.label(unit)} × ${set.reps}'
+            : null,
+        SetType.time =>
+          set.durationSeconds != null ? '${set.durationSeconds}s' : null,
+        SetType.bodyweight =>
+          set.reps != null ? '× ${set.reps} reps' : null,
       };
 }
