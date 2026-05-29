@@ -166,29 +166,33 @@ class SessionRepository {
         .write(SessionsCompanion(finishedAt: Value(DateTime.now())));
   }
 
+  /// Retorna as séries (não-aquecimento) da última vez que [exerciseId] foi
+  /// executado em qualquer treino finalizado — independente do template.
   Future<List<SessionSet>> getPreviousSets(
       int templateId, int exerciseId) async {
-    final lastSession = await (_db.select(_db.sessions)
-          ..where((s) =>
-              s.templateId.equals(templateId) & s.finishedAt.isNotNull())
-          ..orderBy([(s) => OrderingTerm.desc(s.startedAt)])
-          ..limit(1))
-        .getSingleOrNull();
+    // Busca o sessionExercise mais recente para esse exercício em qualquer
+    // sessão finalizada, independente do template.
+    final query = _db.select(_db.sessionExercises).join([
+      innerJoin(
+        _db.sessions,
+        _db.sessions.id.equalsExp(_db.sessionExercises.sessionId),
+      ),
+    ])
+      ..where(
+        _db.sessionExercises.exerciseId.equals(exerciseId) &
+            _db.sessions.finishedAt.isNotNull(),
+      )
+      ..orderBy([OrderingTerm.desc(_db.sessions.startedAt)])
+      ..limit(1);
 
-    if (lastSession == null) return [];
+    final rows = await query.get();
+    if (rows.isEmpty) return [];
 
-    final sessionExercise = await (_db.select(_db.sessionExercises)
-          ..where((se) =>
-              se.sessionId.equals(lastSession.id) &
-              se.exerciseId.equals(exerciseId)))
-        .getSingleOrNull();
-
-    if (sessionExercise == null) return [];
+    final se = rows.first.readTable(_db.sessionExercises);
 
     return (_db.select(_db.sessionSets)
           ..where((s) =>
-              s.sessionExerciseId.equals(sessionExercise.id) &
-              s.isWarmup.equals(false))
+              s.sessionExerciseId.equals(se.id) & s.isWarmup.equals(false))
           ..orderBy([(s) => OrderingTerm.asc(s.position)]))
         .get();
   }
