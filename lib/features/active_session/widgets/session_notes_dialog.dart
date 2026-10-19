@@ -6,13 +6,39 @@ Future<String?> showSessionNotesDialog(
   BuildContext context, {
   String? initial,
 }) {
-  final controller = TextEditingController(text: initial ?? '');
   return showDialog<String>(
     context: context,
-    builder: (context) => AlertDialog(
+    builder: (_) => _SessionNotesDialog(initial: initial),
+  );
+}
+
+// O controller pertence ao State do diálogo: assim só é descartado quando o
+// diálogo sai da árvore, depois da animação de fechamento. Descartá-lo logo
+// após o pop quebra o TextField que ainda está sendo animado.
+class _SessionNotesDialog extends StatefulWidget {
+  final String? initial;
+
+  const _SessionNotesDialog({this.initial});
+
+  @override
+  State<_SessionNotesDialog> createState() => _SessionNotesDialogState();
+}
+
+class _SessionNotesDialogState extends State<_SessionNotesDialog> {
+  late final _controller = TextEditingController(text: widget.initial ?? '');
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
       title: const Text('Anotações do treino'),
       content: TextField(
-        controller: controller,
+        controller: _controller,
         autofocus: true,
         minLines: 3,
         maxLines: 8,
@@ -29,10 +55,10 @@ Future<String?> showSessionNotesDialog(
           child: const Text('Cancelar'),
         ),
         FilledButton(
-          onPressed: () => Navigator.pop(context, controller.text),
+          onPressed: () => Navigator.pop(context, _controller.text),
           child: const Text('Salvar'),
         ),
       ],
-    ),
-  ).whenComplete(controller.dispose);
+    );
+  }
 }
