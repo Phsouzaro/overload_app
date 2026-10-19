@@ -1,4 +1,4 @@
-import 'package:drift/drift.dart' show Value;
+import 'package:drift/drift.dart' show BooleanExpressionOperators, OrderingTerm, Value;
 import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:overload/core/database/app_database.dart';
@@ -301,6 +301,79 @@ void main() {
 
       final sessId = await repo.startSession(tplId);
       expect(await sessionRest(sessId), 90);
+    });
+  });
+
+  group('SessionRepository — exercício extra na sessão', () {
+    Future<Exercise> exercise(int id) =>
+        (db.select(db.exercises)..where((e) => e.id.equals(id))).getSingle();
+
+    test('entra no fim da sessão, marcado como extra, sem mudar o treino',
+        () async {
+      final exA = await _insertExercise(db, name: 'Supino');
+      final exB = await _insertExercise(db, name: 'Rosca');
+      final tplId = await _insertTemplate(db);
+      await db.into(db.templateExercises).insert(
+            TemplateExercisesCompanion.insert(
+                templateId: tplId, exerciseId: exA, position: 0),
+          );
+      final sessId = await repo.startSession(tplId);
+
+      await repo.addExtraExercise(sessId, await exercise(exB));
+
+      final ses = await (db.select(db.sessionExercises)
+            ..where((se) => se.sessionId.equals(sessId))
+            ..orderBy([(se) => OrderingTerm.asc(se.position)]))
+          .get();
+      expect(ses.map((se) => se.exerciseId), [exA, exB]);
+      expect(ses.map((se) => se.isExtra), [false, true]);
+
+      final links = await db.select(db.templateExercises).get();
+      expect(links.map((te) => te.exerciseId), [exA]);
+    });
+
+    test('sem histórico cria uma série vazia; com histórico copia a quantidade',
+        () async {
+      final exNovo = await _insertExercise(db, name: 'Novo');
+      final exComHist = await _insertExercise(db, name: 'Com histórico');
+      final tplId = await _insertTemplate(db);
+
+      final antiga = await _insertSession(db, tplId);
+      final seAntiga = await _insertSessionExercise(db, antiga, exComHist);
+      await _insertSet(db, seAntiga, weightKg: 50, reps: 10, position: 0);
+      await _insertSet(db, seAntiga, weightKg: 50, reps: 9, position: 1);
+      await _insertSet(db, seAntiga, weightKg: 50, reps: 8, position: 2);
+
+      final sessId = await _insertSession(db, tplId, finished: false);
+      await repo.addExtraExercise(sessId, await exercise(exNovo));
+      await repo.addExtraExercise(sessId, await exercise(exComHist));
+
+      Future<int> setCount(int exId) async {
+        final se = await (db.select(db.sessionExercises)
+              ..where((se) =>
+                  se.sessionId.equals(sessId) & se.exerciseId.equals(exId)))
+            .getSingle();
+        return (await (db.select(db.sessionSets)
+                  ..where((s) => s.sessionExerciseId.equals(se.id)))
+                .get())
+            .length;
+      }
+
+      expect(await setCount(exNovo), 1);
+      expect(await setCount(exComHist), 3);
+    });
+
+    test('removeSessionExercise apaga o exercício e suas séries', () async {
+      final exId = await _insertExercise(db);
+      final tplId = await _insertTemplate(db);
+      final sessId = await _insertSession(db, tplId, finished: false);
+      await repo.addExtraExercise(sessId, await exercise(exId));
+      final se = await db.select(db.sessionExercises).getSingle();
+
+      await repo.removeSessionExercise(se.id);
+
+      expect(await db.select(db.sessionExercises).get(), isEmpty);
+      expect(await db.select(db.sessionSets).get(), isEmpty);
     });
   });
 

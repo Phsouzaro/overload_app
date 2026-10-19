@@ -44,6 +44,8 @@ class SessionExercises extends Table {
   // Descanso usado nesta sessão (override do treino ou padrão do exercício),
   // copiado no início. Nulo em sessões anteriores à v3: usa o do exercício.
   IntColumn get restSeconds => integer().nullable()();
+  // Exercício adicionado durante a sessão, fora do treino salvo (v4).
+  BoolColumn get isExtra => boolean().withDefault(const Constant(false))();
 }
 
 class SessionSets extends Table {

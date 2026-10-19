@@ -113,6 +113,53 @@ class SessionRepository {
     });
   }
 
+  /// Adiciona [exercise] só a esta sessão (o treino salvo não muda). Pré-cria
+  /// as séries como no início da sessão, ou uma série vazia sem histórico.
+  Future<void> addExtraExercise(int sessionId, Exercise exercise) {
+    return _db.transaction(() async {
+      final existing = await (_db.select(_db.sessionExercises)
+            ..where((se) => se.sessionId.equals(sessionId)))
+          .get();
+      final position = existing.isEmpty
+          ? 0
+          : existing.map((se) => se.position).reduce(max) + 1;
+
+      final seId = await _db.into(_db.sessionExercises).insert(
+            SessionExercisesCompanion.insert(
+              sessionId: sessionId,
+              exerciseId: exercise.id,
+              position: position,
+              restSeconds: Value(exercise.restSeconds),
+              isExtra: const Value(true),
+            ),
+          );
+
+      final prevSets = await getPreviousSets(0, exercise.id);
+      final count = prevSets.isEmpty ? 1 : prevSets.length;
+      for (var j = 0; j < count; j++) {
+        await _db.into(_db.sessionSets).insert(
+              SessionSetsCompanion.insert(
+                sessionExerciseId: seId,
+                setType: exercise.setType,
+                position: j,
+              ),
+            );
+      }
+    });
+  }
+
+  /// Tira um exercício da sessão, junto com as séries registradas nele.
+  Future<void> removeSessionExercise(int sessionExerciseId) {
+    return _db.transaction(() async {
+      await (_db.delete(_db.sessionSets)
+            ..where((s) => s.sessionExerciseId.equals(sessionExerciseId)))
+          .go();
+      await (_db.delete(_db.sessionExercises)
+            ..where((se) => se.id.equals(sessionExerciseId)))
+          .go();
+    });
+  }
+
   Future<Session> getSession(int sessionId) {
     return (_db.select(_db.sessions)..where((s) => s.id.equals(sessionId)))
         .getSingle();

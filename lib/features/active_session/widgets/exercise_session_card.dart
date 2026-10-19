@@ -66,11 +66,32 @@ class ExerciseSessionCard extends ConsumerWidget {
                     children: [
                       Text(exercise.name,
                           style: Theme.of(context).textTheme.titleMedium),
-                      Text(exercise.muscleGroup,
-                          style: Theme.of(context).textTheme.bodySmall),
+                      Row(
+                        children: [
+                          Flexible(
+                            child: Text(exercise.muscleGroup,
+                                style: Theme.of(context).textTheme.bodySmall),
+                          ),
+                          if (item.sessionExercise.isExtra) ...[
+                            const SizedBox(width: 6),
+                            const _ExtraBadge(),
+                          ],
+                        ],
+                      ),
                     ],
                   ),
                 ),
+                if (item.sessionExercise.isExtra)
+                  IconButton(
+                    icon: Icon(Icons.remove_circle_outline,
+                        size: 20, color: Theme.of(context).colorScheme.error),
+                    tooltip: 'Remover desta sessão',
+                    visualDensity: VisualDensity.compact,
+                    padding: EdgeInsets.zero,
+                    constraints:
+                        const BoxConstraints(minWidth: 32, minHeight: 32),
+                    onPressed: () => _confirmRemove(context, ref),
+                  ),
                 // ── Botão de histórico ──────────────────────────────────
                 IconButton(
                   icon: Icon(
@@ -262,6 +283,33 @@ class ExerciseSessionCard extends ConsumerWidget {
     );
   }
 
+  Future<void> _confirmRemove(BuildContext context, WidgetRef ref) async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text('Remover ${item.exercise.name}?'),
+        content: const Text(
+            'O exercício sai desta sessão junto com as séries registradas '
+            'nele. O treino salvo não muda.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancelar'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Remover'),
+          ),
+        ],
+      ),
+    );
+    if (confirm == true) {
+      await ref
+          .read(sessionRepositoryProvider)
+          .removeSessionExercise(item.sessionExercise.id);
+    }
+  }
+
   double? _computeOneRm(List<SessionSet> sets, SetType type) {
     if (type != SetType.weight) return null;
     for (var i = sets.length - 1; i >= 0; i--) {
@@ -303,6 +351,31 @@ class ExerciseSessionCard extends ConsumerWidget {
       builder: (_) => _ExerciseHistorySheet(
         exercise: item.exercise,
         unit: unit,
+      ),
+    );
+  }
+}
+
+/// Marca de exercício adicionado só nesta sessão.
+class _ExtraBadge extends StatelessWidget {
+  const _ExtraBadge();
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+      decoration: BoxDecoration(
+        color: cs.tertiaryContainer,
+        borderRadius: BorderRadius.circular(6),
+      ),
+      child: Text(
+        'Extra',
+        style: TextStyle(
+          fontSize: 11,
+          fontWeight: FontWeight.w600,
+          color: cs.onTertiaryContainer,
+        ),
       ),
     );
   }

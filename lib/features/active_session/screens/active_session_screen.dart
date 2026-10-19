@@ -4,7 +4,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:wakelock_plus/wakelock_plus.dart';
+import '../../../core/database/app_database.dart';
 import '../../../core/services/rest_notification_service.dart';
+import '../../workout_templates/screens/exercise_picker_screen.dart';
 import '../providers/session_providers.dart';
 import '../widgets/exercise_session_card.dart';
 import '../widgets/session_notes_dialog.dart';
@@ -35,6 +37,17 @@ class _ActiveSessionScreenState extends ConsumerState<ActiveSessionScreen> {
   DateTime? _restEndsAt;
   int _totalRest = 0;
   String? _notes;
+
+  Future<void> _addExtraExercise() async {
+    final exercise = await Navigator.push<Exercise>(
+      context,
+      MaterialPageRoute(builder: (_) => const ExercisePickerScreen()),
+    );
+    if (exercise == null || !mounted) return;
+    await ref
+        .read(sessionRepositoryProvider)
+        .addExtraExercise(widget.sessionId, exercise);
+  }
 
   Future<void> _editNotes() async {
     final text = await showSessionNotesDialog(context, initial: _notes);
@@ -231,13 +244,25 @@ class _ActiveSessionScreenState extends ConsumerState<ActiveSessionScreen> {
           error: (e, _) => Center(child: Text('Erro: $e')),
           data: (exercises) => ListView.builder(
             padding: const EdgeInsets.only(top: 8, bottom: 120),
-            itemCount: exercises.length,
-            itemBuilder: (context, index) => ExerciseSessionCard(
-              key: ValueKey(exercises[index].sessionExercise.id),
-              item: exercises[index],
-              templateId: widget.templateId,
-              onSetConfirmed: _startRestTimer,
-            ),
+            itemCount: exercises.length + 1,
+            itemBuilder: (context, index) {
+              if (index == exercises.length) {
+                return Padding(
+                  padding: const EdgeInsets.fromLTRB(12, 4, 12, 0),
+                  child: OutlinedButton.icon(
+                    onPressed: _addExtraExercise,
+                    icon: const Icon(Icons.add),
+                    label: const Text('Adicionar exercício (só hoje)'),
+                  ),
+                );
+              }
+              return ExerciseSessionCard(
+                key: ValueKey(exercises[index].sessionExercise.id),
+                item: exercises[index],
+                templateId: widget.templateId,
+                onSetConfirmed: _startRestTimer,
+              );
+            },
           ),
         ),
         bottomNavigationBar: SafeArea(

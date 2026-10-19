@@ -19,6 +19,7 @@ Aplicativo Android de gerenciamento de treinos desenvolvido em Flutter. Permite 
 - Séries pré-criadas com base na última vez em que cada exercício foi feito (em qualquer treino), com os valores anteriores como sugestão
 - Chip **"↑ X kg"** exibindo o peso máximo da sessão anterior por exercício
 - Histórico completo do exercício em um bottom sheet, sem sair da sessão
+- **Exercício extra**: adicionar um exercício só na sessão em andamento (marcado como "Extra" e removível), sem alterar o treino salvo
 - Suporte a três tipos de série: **carga** (peso × reps), **tempo** (segundos) e **peso corporal** (reps)
 - Toggle de aquecimento e toggle de "até a falha" por série; série só é confirmada com os campos obrigatórios preenchidos
 - Timer de descanso com countdown e barra de progresso ao confirmar cada série, com **notificação e vibração** ao terminar (funciona com o app em segundo plano)
@@ -140,7 +141,8 @@ Sessions
 
 SessionExercises
   id, sessionId → Sessions, exerciseId → Exercises, position,
-  restSeconds (descanso usado na sessão; v3)
+  restSeconds (descanso usado na sessão; v3),
+  isExtra (adicionado só na sessão; v4)
 
 SessionSets
   id, sessionExerciseId → SessionExercises, setType,
