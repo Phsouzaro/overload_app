@@ -304,6 +304,26 @@ void main() {
     });
   });
 
+  group('SessionRepository.updateNotes', () {
+    test('salva o texto sem espaços nas pontas', () async {
+      final tplId = await _insertTemplate(db);
+      final sessId = await _insertSession(db, tplId);
+
+      await repo.updateNotes(sessId, '  Ombro incomodou no supino \n');
+      expect((await repo.getSession(sessId)).notes,
+          'Ombro incomodou no supino');
+    });
+
+    test('texto vazio remove a anotação', () async {
+      final tplId = await _insertTemplate(db);
+      final sessId = await _insertSession(db, tplId);
+
+      await repo.updateNotes(sessId, 'Algo');
+      await repo.updateNotes(sessId, '   ');
+      expect((await repo.getSession(sessId)).notes, isNull);
+    });
+  });
+
   group('SessionRepository — sessão em andamento', () {
     test('getActiveSession retorna null quando todas estão finalizadas',
         () async {

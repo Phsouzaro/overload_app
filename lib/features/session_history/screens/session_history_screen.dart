@@ -55,7 +55,17 @@ class SessionHistoryScreen extends ConsumerWidget {
                             Theme.of(context).colorScheme.onPrimaryContainer,
                       ),
                     ),
-                    title: Text(s.templateName),
+                    title: Row(
+                      children: [
+                        Flexible(child: Text(s.templateName)),
+                        if (s.session.notes != null) ...[
+                          const SizedBox(width: 6),
+                          Icon(Icons.sticky_note_2_outlined,
+                              size: 16,
+                              color: Theme.of(context).colorScheme.outline),
+                        ],
+                      ],
+                    ),
                     subtitle: Text(
                       DateFormat('EEEE, dd/MM/yyyy', 'pt_BR')
                           .format(s.session.startedAt),
@@ -81,6 +91,7 @@ class SessionHistoryScreen extends ConsumerWidget {
                           templateName: s.templateName,
                           startedAt: s.session.startedAt,
                           finishedAt: s.session.finishedAt,
+                          notes: s.session.notes,
                         ),
                       ),
                     ),

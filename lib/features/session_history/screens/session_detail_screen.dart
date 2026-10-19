@@ -5,6 +5,7 @@ import '../../../core/database/app_database.dart';
 import '../../../core/database/tables.dart';
 import '../../../core/utils/unit_converter.dart';
 import '../../active_session/providers/session_providers.dart';
+import '../../active_session/widgets/session_notes_dialog.dart';
 import '../../settings/providers/settings_provider.dart';
 
 class SessionDetailScreen extends ConsumerWidget {
@@ -12,6 +13,7 @@ class SessionDetailScreen extends ConsumerWidget {
   final String templateName;
   final DateTime startedAt;
   final DateTime? finishedAt;
+  final String? notes;
 
   const SessionDetailScreen({
     super.key,
@@ -19,6 +21,7 @@ class SessionDetailScreen extends ConsumerWidget {
     required this.templateName,
     required this.startedAt,
     this.finishedAt,
+    this.notes,
   });
 
   @override
@@ -108,6 +111,9 @@ class SessionDetailScreen extends ConsumerWidget {
               ),
               const SizedBox(height: 12),
 
+              _NotesCard(sessionId: sessionId, initialNotes: notes),
+              const SizedBox(height: 12),
+
               // Exercícios
               ...details.map((d) => _ExerciseDetailCard(
                     detail: d,
@@ -126,6 +132,61 @@ class SessionDetailScreen extends ConsumerWidget {
     final s = seconds % 60;
     if (h > 0) return '${h}h ${m}min';
     return '${m}min ${s}s';
+  }
+}
+
+class _NotesCard extends ConsumerStatefulWidget {
+  final int sessionId;
+  final String? initialNotes;
+
+  const _NotesCard({required this.sessionId, required this.initialNotes});
+
+  @override
+  ConsumerState<_NotesCard> createState() => _NotesCardState();
+}
+
+class _NotesCardState extends ConsumerState<_NotesCard> {
+  late String? _notes = widget.initialNotes;
+
+  Future<void> _edit() async {
+    final text = await showSessionNotesDialog(context, initial: _notes);
+    if (text == null || !mounted) return;
+    await ref
+        .read(sessionRepositoryProvider)
+        .updateNotes(widget.sessionId, text);
+    if (mounted) {
+      setState(() => _notes = text.trim().isEmpty ? null : text.trim());
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    return Card(
+      child: InkWell(
+        borderRadius: BorderRadius.circular(12),
+        onTap: _edit,
+        child: Padding(
+          padding: const EdgeInsets.all(14),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Icon(Icons.sticky_note_2_outlined, size: 20, color: cs.primary),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  _notes ?? 'Adicionar anotações',
+                  style: _notes == null
+                      ? TextStyle(color: cs.outline)
+                      : Theme.of(context).textTheme.bodyMedium,
+                ),
+              ),
+              Icon(Icons.edit_outlined, size: 18, color: cs.outline),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 }
 

@@ -206,6 +206,15 @@ class SessionRepository {
     });
   }
 
+  /// Salva as anotações da sessão; texto vazio remove a anotação.
+  Future<void> updateNotes(int sessionId, String? notes) {
+    final trimmed = notes?.trim();
+    return (_db.update(_db.sessions)..where((s) => s.id.equals(sessionId)))
+        .write(SessionsCompanion(
+      notes: Value(trimmed == null || trimmed.isEmpty ? null : trimmed),
+    ));
+  }
+
   /// Apaga a sessão e tudo que foi registrado nela ("Sair sem salvar").
   Future<void> discardSession(int sessionId) {
     return _db.transaction(() => _deleteSessionData(sessionId));

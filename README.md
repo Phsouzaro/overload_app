@@ -31,6 +31,7 @@ Aplicativo Android de gerenciamento de treinos desenvolvido em Flutter. Permite 
 ### Histórico
 - Lista de sessões finalizadas com duração
 - Detalhe de cada sessão com todas as séries por exercício
+- **Anotações** por sessão, escritas durante o treino (ícone de nota na barra) ou depois, no detalhe
 
 ### Biblioteca de Exercícios
 - ~45 exercícios pré-cadastrados em 8 grupos musculares

@@ -7,6 +7,7 @@ import 'package:wakelock_plus/wakelock_plus.dart';
 import '../../../core/services/rest_notification_service.dart';
 import '../providers/session_providers.dart';
 import '../widgets/exercise_session_card.dart';
+import '../widgets/session_notes_dialog.dart';
 import 'session_summary_screen.dart';
 
 class ActiveSessionScreen extends ConsumerStatefulWidget {
@@ -33,6 +34,18 @@ class _ActiveSessionScreenState extends ConsumerState<ActiveSessionScreen> {
   DateTime? _startedAt;
   DateTime? _restEndsAt;
   int _totalRest = 0;
+  String? _notes;
+
+  Future<void> _editNotes() async {
+    final text = await showSessionNotesDialog(context, initial: _notes);
+    if (text == null || !mounted) return;
+    await ref
+        .read(sessionRepositoryProvider)
+        .updateNotes(widget.sessionId, text);
+    if (mounted) {
+      setState(() => _notes = text.trim().isEmpty ? null : text.trim());
+    }
+  }
 
   int get _elapsedSeconds => _startedAt == null
       ? 0
@@ -56,7 +69,12 @@ class _ActiveSessionScreenState extends ConsumerState<ActiveSessionScreen> {
         .read(sessionRepositoryProvider)
         .getSession(widget.sessionId)
         .then((session) {
-      if (mounted) setState(() => _startedAt = session.startedAt);
+      if (mounted) {
+        setState(() {
+          _startedAt = session.startedAt;
+          _notes = session.notes;
+        });
+      }
     });
     _ticker = Timer.periodic(const Duration(seconds: 1), (_) {
       if (!mounted) return;
@@ -187,6 +205,13 @@ class _ActiveSessionScreenState extends ConsumerState<ActiveSessionScreen> {
         appBar: AppBar(
           title: Text(widget.templateName),
           actions: [
+            IconButton(
+              icon: Icon(_notes == null
+                  ? Icons.sticky_note_2_outlined
+                  : Icons.sticky_note_2),
+              tooltip: 'Anotações',
+              onPressed: _editNotes,
+            ),
             Padding(
               padding: const EdgeInsets.only(right: 16),
               child: Center(
