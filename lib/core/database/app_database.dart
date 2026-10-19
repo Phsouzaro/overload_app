@@ -57,7 +57,11 @@ class AppDatabase extends _$AppDatabase {
     );
   }
 
+  /// Nome do arquivo: o drift_flutter grava em
+  /// `getApplicationDocumentsDirectory()/$dbName.sqlite`.
+  static const dbName = 'overload_db';
+
   static QueryExecutor _openConnection() {
-    return driftDatabase(name: 'overload_db');
+    return driftDatabase(name: dbName);
   }
 }

@@ -22,8 +22,7 @@ Future<bool> _confirmDiscard(BuildContext context, String templateName) async {
     context: context,
     builder: (context) => AlertDialog(
       title: const Text('Descartar treino?'),
-      content: Text(
-          'As séries registradas em "$templateName" serão apagadas.'),
+      content: Text('As séries registradas em "$templateName" serão apagadas.'),
       actions: [
         TextButton(
           onPressed: () => Navigator.pop(context, false),
@@ -51,8 +50,9 @@ Future<bool> ensureNoActiveSession(BuildContext context, WidgetRef ref) async {
     builder: (context) => AlertDialog(
       title: const Text('Treino em andamento'),
       content: Text(
-          '"${active.templateName}" ainda não foi encerrado. '
-          'Iniciar um novo treino descarta o que foi registrado nele.'),
+        '"${active.templateName}" ainda não foi encerrado. '
+        'Iniciar um novo treino descarta o que foi registrado nele.',
+      ),
       actions: [
         TextButton(
           onPressed: () => Navigator.pop(context, 'discard'),
@@ -88,8 +88,9 @@ class ActiveSessionBanner extends ConsumerWidget {
     if (active == null) return const SizedBox.shrink();
 
     final cs = Theme.of(context).colorScheme;
-    final minutes =
-        DateTime.now().difference(active.session.startedAt).inMinutes;
+    final minutes = DateTime.now()
+        .difference(active.session.startedAt)
+        .inMinutes;
 
     return Card(
       margin: const EdgeInsets.fromLTRB(12, 8, 12, 0),
@@ -106,10 +107,9 @@ class ActiveSessionBanner extends ConsumerWidget {
                 Expanded(
                   child: Text(
                     'Treino em andamento: ${active.templateName}',
-                    style: Theme.of(context)
-                        .textTheme
-                        .titleSmall
-                        ?.copyWith(color: cs.onPrimaryContainer),
+                    style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                      color: cs.onPrimaryContainer,
+                    ),
                   ),
                 ),
               ],
@@ -118,10 +118,9 @@ class ActiveSessionBanner extends ConsumerWidget {
               padding: const EdgeInsets.only(left: 32, top: 2),
               child: Text(
                 minutes < 1 ? 'Iniciado agora' : 'Iniciado há $minutes min',
-                style: Theme.of(context)
-                    .textTheme
-                    .bodySmall
-                    ?.copyWith(color: cs.onPrimaryContainer),
+                style: Theme.of(
+                  context,
+                ).textTheme.bodySmall?.copyWith(color: cs.onPrimaryContainer),
               ),
             ),
             Row(

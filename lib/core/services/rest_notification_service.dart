@@ -11,17 +11,20 @@ class RestNotificationService {
   Future<bool>? _ready;
 
   RestNotificationService([FlutterLocalNotificationsPlugin? plugin])
-      : _plugin = plugin ?? FlutterLocalNotificationsPlugin();
+    : _plugin = plugin ?? FlutterLocalNotificationsPlugin();
 
   Future<bool> _init() async {
     try {
       tz_data.initializeTimeZones();
-      await _plugin.initialize(const InitializationSettings(
-        android: AndroidInitializationSettings('@mipmap/ic_launcher'),
-      ));
+      await _plugin.initialize(
+        const InitializationSettings(
+          android: AndroidInitializationSettings('@mipmap/ic_launcher'),
+        ),
+      );
       await _plugin
           .resolvePlatformSpecificImplementation<
-              AndroidFlutterLocalNotificationsPlugin>()
+            AndroidFlutterLocalNotificationsPlugin
+          >()
           ?.requestNotificationsPermission();
       return true;
     } catch (_) {
@@ -38,8 +41,10 @@ class RestNotificationService {
     if (!await (_ready ??= _init())) return;
     await _plugin.cancel(_notificationId);
 
-    final android = _plugin.resolvePlatformSpecificImplementation<
-        AndroidFlutterLocalNotificationsPlugin>();
+    final android = _plugin
+        .resolvePlatformSpecificImplementation<
+          AndroidFlutterLocalNotificationsPlugin
+        >();
     final exact = await android?.canScheduleExactNotifications() ?? false;
 
     await _plugin.zonedSchedule(

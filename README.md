@@ -53,6 +53,7 @@ Aplicativo Android de gerenciamento de treinos desenvolvido em Flutter. Permite 
 ### Configurações
 - Unidade de peso **kg ou lbs**, aplicada em todo o app (o banco sempre guarda kg)
 - Descanso padrão para novos exercícios
+- **Backup completo** do banco (`.sqlite`) para compartilhar, e **restauração** a partir de um backup. Antes de restaurar, o app guarda uma cópia dos dados atuais em `overload_db_antes_da_restauracao.sqlite`
 
 ---
 
@@ -95,11 +96,13 @@ lib/
 │   ├── services/
 │   │   ├── export_service.dart              # CSV e compartilhamento de templates
 │   │   ├── import_service.dart              # Importação de templates .overload
+│   │   ├── backup_service.dart              # Backup/restauração do banco inteiro
 │   │   └── rest_notification_service.dart   # Notificação do fim do descanso
 │   ├── theme/
 │   │   └── app_theme.dart           # Tema escuro com seed color #6C63FF
 │   └── utils/
 │       ├── one_rm_calculator.dart   # Fórmula de Epley para 1RM
+│       ├── rest_formatter.dart      # Formatação do tempo de descanso
 │       └── unit_converter.dart      # Conversão e formatação kg/lbs
 │
 └── features/
@@ -165,6 +168,9 @@ Ao iniciar uma sessão, o `startSession` busca a última sessão finalizada em q
 
 ### Ciclo de vida da sessão
 Só existe uma sessão ativa (sem `finishedAt`) por vez, exposta por `activeSessionProvider`. Ao iniciar outro treino com uma sessão em andamento, o app pergunta se deve retomá-la ou descartá-la; "Descartar" apaga a sessão com `discardSession`. Cronômetro e descanso são calculados a partir de horários absolutos (`startedAt`, fim do descanso), então continuam corretos com o app em segundo plano.
+
+### Backup e restauração
+O backup usa `VACUUM INTO`, que gera uma cópia consistente com o banco aberto. Na restauração, o `BackupService` confere o cabeçalho SQLite e o `user_version` (o schema do drift): backups de versões mais novas do app são recusados, e os mais antigos passam pelas migrations ao abrir. O banco atual é fechado, o arquivo é trocado e o `databaseProvider` é invalidado para reabrir.
 
 ### Detecção de Personal Record
 O `exercisePrWeightProvider` consulta o maior peso registrado em séries não-aquecimento de sessões **finalizadas**. Como a sessão atual não está finalizada, ela é automaticamente excluída da comparação. Qualquer série confirmada que supere esse valor (ou a primeira série de um exercício, quando não há histórico) é destacada.
