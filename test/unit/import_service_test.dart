@@ -300,4 +300,90 @@ void main() {
       expect(links[1].position, 1);
     });
   });
+
+  // ── Robustez ───────────────────────────────────────────────────────────────
+  group('robustez', () {
+    Future<({int templates, int exercises, int links})> contagens() async => (
+          templates: (await db.select(db.workoutTemplates).get()).length,
+          exercises: (await db.select(db.exercises).get()).length,
+          links: (await db.select(db.templateExercises).get()).length,
+        );
+
+    test('arquivo que não é JSON lança FormatException sem gravar nada',
+        () async {
+      final antes = await contagens();
+
+      await expectLater(
+        service.parseAndImport('isso não é json'),
+        throwsA(isA<FormatException>()),
+      );
+      expect(await contagens(), antes);
+    });
+
+    test(
+        'exercício com campo faltando no meio da lista não deixa '
+        'importação parcial', () async {
+      const jsonQuebrado = '''
+      {
+        "version": 1,
+        "template": {
+          "name": "Treino Quebrado",
+          "exercises": [
+            {"name": "Exercício Fictício Ok", "muscleGroup": "Grupo Teste",
+             "setType": "weight", "restSeconds": 90},
+            {"name": "Exercício Fictício Sem Grupo", "setType": "weight"}
+          ]
+        }
+      }
+      ''';
+      final antes = await contagens();
+
+      await expectLater(
+        service.parseAndImport(jsonQuebrado),
+        throwsA(isA<FormatException>()),
+      );
+      expect(await contagens(), antes);
+    });
+
+    test('erro no banco durante a importação desfaz tudo', () async {
+      // Trigger que faz o 2º vínculo falhar, simulando erro no meio da gravação.
+      await db.customStatement('''
+        CREATE TRIGGER falha_no_segundo BEFORE INSERT ON template_exercises
+        WHEN NEW.position = 1
+        BEGIN SELECT RAISE(ABORT, 'falha simulada'); END;
+      ''');
+      final antes = await contagens();
+
+      await expectLater(
+        service.parseAndImport(_jsonDoisNovos),
+        throwsA(anything),
+      );
+      expect(await contagens(), antes);
+    });
+
+    test('nome repetido na biblioteca: reutiliza o mais antigo sem erro',
+        () async {
+      final primeiro = await db.into(db.exercises).insert(
+            ExercisesCompanion.insert(
+              name: 'Exercício Fictício Alpha',
+              muscleGroup: 'Grupo Teste',
+              setType: SetType.weight,
+            ),
+          );
+      await db.into(db.exercises).insert(ExercisesCompanion.insert(
+            name: 'exercício fictício alpha',
+            muscleGroup: 'Grupo Teste',
+            setType: SetType.weight,
+          ));
+
+      final result = await service.parseAndImport(_jsonDoisNovos);
+      expect(result.exercisesReused, 1);
+      expect(result.exercisesAdded, 1);
+
+      final link = await (db.select(db.templateExercises)
+            ..where((te) => te.position.equals(0)))
+          .getSingle();
+      expect(link.exerciseId, primeiro);
+    });
+  });
 }

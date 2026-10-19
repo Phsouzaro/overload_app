@@ -47,7 +47,10 @@ class _WorkoutListScreenState extends ConsumerState<WorkoutListScreen> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Erro ao importar: $e')),
+          SnackBar(
+            content: Text(
+                'Erro ao importar: ${e is FormatException ? e.message : e}'),
+          ),
         );
       }
     } finally {

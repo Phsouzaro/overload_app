@@ -42,18 +42,51 @@ class ImportService {
   }
 
   Future<ImportResult> parseAndImport(String content) async {
-    final Map<String, dynamic> json = jsonDecode(content);
+    final Map<String, dynamic> json;
+    try {
+      json = jsonDecode(content) as Map<String, dynamic>;
+    } catch (_) {
+      throw const FormatException('Arquivo inválido: não é um treino do Overload');
+    }
 
     final version = json['version'] as int? ?? 1;
     if (version != 1) {
       throw Exception('Versão de arquivo não suportada: $version');
     }
 
-    final templateJson = json['template'] as Map<String, dynamic>;
-    final templateName = templateJson['name'] as String;
-    final exercisesJson =
-        (templateJson['exercises'] as List<dynamic>).cast<Map<String, dynamic>>();
+    // ── Valida tudo antes de gravar qualquer coisa ───────────────────────────
+    final String templateName;
+    final List<({String name, String muscleGroup, SetType setType, int restSeconds})>
+        exercises;
+    try {
+      final templateJson = json['template'] as Map<String, dynamic>;
+      templateName = templateJson['name'] as String;
+      exercises = (templateJson['exercises'] as List<dynamic>).map((e) {
+        final exJson = e as Map<String, dynamic>;
+        final setTypeStr = exJson['setType'] as String;
+        return (
+          name: exJson['name'] as String,
+          muscleGroup: exJson['muscleGroup'] as String,
+          setType: SetType.values.firstWhere(
+            (t) => t.name == setTypeStr,
+            orElse: () => SetType.weight,
+          ),
+          restSeconds: exJson['restSeconds'] as int? ?? 90,
+        );
+      }).toList();
+    } on TypeError {
+      throw const FormatException('Arquivo inválido: campos ausentes ou com formato errado');
+    }
 
+    // Tudo-ou-nada: se algo falhar no meio, nada fica gravado.
+    return _db.transaction(() => _import(templateName, exercises));
+  }
+
+  Future<ImportResult> _import(
+    String templateName,
+    List<({String name, String muscleGroup, SetType setType, int restSeconds})>
+        exercisesJson,
+  ) async {
     int added = 0;
     int reused = 0;
 
@@ -67,22 +100,16 @@ class ImportService {
 
     // ── For each exercise: reuse existing by name or create ──────────────────
     for (var i = 0; i < exercisesJson.length; i++) {
-      final exJson = exercisesJson[i];
-      final name = exJson['name'] as String;
-      final muscleGroup = exJson['muscleGroup'] as String;
-      final setTypeStr = exJson['setType'] as String;
-      final restSeconds = exJson['restSeconds'] as int? ?? 90;
+      final (:name, :muscleGroup, :setType, :restSeconds) = exercisesJson[i];
 
-      final setType = SetType.values.firstWhere(
-        (t) => t.name == setTypeStr,
-        orElse: () => SetType.weight,
-      );
-
-      // Look up existing (non-archived) exercise by name (case-insensitive)
+      // Look up existing (non-archived) exercise by name (case-insensitive).
+      // A biblioteca pode ter nomes repetidos: usa o mais antigo.
       final existing = await (_db.select(_db.exercises)
             ..where((e) =>
                 e.name.lower().equals(name.toLowerCase()) &
-                e.isArchived.equals(false)))
+                e.isArchived.equals(false))
+            ..orderBy([(e) => OrderingTerm.asc(e.id)])
+            ..limit(1))
           .getSingleOrNull();
 
       final int exerciseId;
