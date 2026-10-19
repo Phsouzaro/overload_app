@@ -218,6 +218,24 @@ flutter build apk --release
 # APK gerado em: build/app/outputs/flutter-apk/app-release.apk
 ```
 
+### Assinatura do APK
+
+O APK de release é assinado com a chave própria do Overload, **não** com a chave de debug (que muda a cada máquina e impede atualizar o app já instalado no celular).
+
+- Chave: `overload-release.jks` (alias `overload`), guardada no OneDrive em `Overload/`
+- `android/key.properties` (fora do git) aponta para a chave e guarda a senha:
+
+```properties
+storeFile=C:/Users/<usuario>/OneDrive/Overload/overload-release.jks
+storePassword=<senha>
+keyAlias=overload
+keyPassword=<senha>
+```
+
+Sem esse arquivo ou sem a chave, `flutter build apk --release` falha com uma mensagem explicando o que falta. Em um PC novo: instale o OneDrive, espere sincronizar a pasta `Overload/` e recrie o `key.properties` com o caminho e a senha.
+
+> Perder a chave **ou** a senha significa não conseguir mais atualizar o app instalado (só desinstalando e perdendo os dados). Mantenha a senha num gerenciador de senhas.
+
 ---
 
 ## Configuração Android
