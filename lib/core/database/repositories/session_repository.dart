@@ -24,6 +24,16 @@ class FinishedSessionSummary {
   });
 }
 
+class ActiveSessionSummary {
+  final Session session;
+  final String templateName;
+
+  const ActiveSessionSummary({
+    required this.session,
+    required this.templateName,
+  });
+}
+
 class SessionSetDetail {
   final Exercise exercise;
   final List<SessionSet> sets;
@@ -255,6 +265,33 @@ class SessionRepository {
               isFilledSet(s))
           ..orderBy([(s) => OrderingTerm.asc(s.position)]))
         .get();
+  }
+
+  /// Sessão iniciada e ainda não encerrada (no máximo uma por vez).
+  Stream<ActiveSessionSummary?> watchActiveSession() =>
+      _activeSessionQuery().watch().map(_toActiveSession);
+
+  Future<ActiveSessionSummary?> getActiveSession() async =>
+      _toActiveSession(await _activeSessionQuery().get());
+
+  JoinedSelectStatement _activeSessionQuery() {
+    return _db.select(_db.sessions).join([
+      innerJoin(
+        _db.workoutTemplates,
+        _db.workoutTemplates.id.equalsExp(_db.sessions.templateId),
+      ),
+    ])
+      ..where(_db.sessions.finishedAt.isNull())
+      ..orderBy([OrderingTerm.desc(_db.sessions.startedAt)])
+      ..limit(1);
+  }
+
+  ActiveSessionSummary? _toActiveSession(List<TypedResult> rows) {
+    if (rows.isEmpty) return null;
+    return ActiveSessionSummary(
+      session: rows.first.readTable(_db.sessions),
+      templateName: rows.first.readTable(_db.workoutTemplates).name,
+    );
   }
 
   Stream<List<FinishedSessionSummary>> watchFinishedSessions() {

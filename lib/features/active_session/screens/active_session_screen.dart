@@ -135,15 +135,16 @@ class _ActiveSessionScreenState extends ConsumerState<ActiveSessionScreen> {
       builder: (context) => AlertDialog(
         title: const Text('Sair da sessão?'),
         content: const Text(
-            'Você pode encerrar a sessão ou sair sem salvar.'),
+            'Você pode encerrar agora, pausar para continuar depois pela '
+            'tela inicial, ou descartar o treino.'),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(context, 'cancel'),
-            child: const Text('Continuar treino'),
+            onPressed: () => Navigator.pop(context, 'exit'),
+            child: const Text('Descartar'),
           ),
           TextButton(
-            onPressed: () => Navigator.pop(context, 'exit'),
-            child: const Text('Sair sem salvar'),
+            onPressed: () => Navigator.pop(context, 'pause'),
+            child: const Text('Continuar depois'),
           ),
           FilledButton(
             onPressed: () => Navigator.pop(context, 'finish'),
@@ -165,7 +166,8 @@ class _ActiveSessionScreenState extends ConsumerState<ActiveSessionScreen> {
           .discardSession(widget.sessionId);
       return true;
     }
-    return false;
+    // Tocar fora do diálogo (null) mantém o usuário no treino.
+    return result == 'pause';
   }
 
   @override

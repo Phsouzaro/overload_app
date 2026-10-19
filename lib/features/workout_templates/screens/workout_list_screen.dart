@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import '../../../core/database/app_database.dart';
+import '../../active_session/widgets/active_session_banner.dart';
 import '../../reports/providers/report_providers.dart';
 import '../providers/workout_providers.dart';
 import '../../../features/session_history/screens/session_history_screen.dart';
@@ -113,7 +114,22 @@ class _WorkoutListScreenState extends ConsumerState<WorkoutListScreen> {
           ),
         ],
       ),
-      body: templatesAsync.when(
+      body: Column(
+        children: [
+          const ActiveSessionBanner(),
+          Expanded(child: _buildTemplates(templatesAsync)),
+        ],
+      ),
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: _showCreateDialog,
+        icon: const Icon(Icons.add),
+        label: const Text('Novo Treino'),
+      ),
+    );
+  }
+
+  Widget _buildTemplates(AsyncValue<List<WorkoutTemplate>> templatesAsync) {
+    return templatesAsync.when(
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (e, _) => Center(child: Text('Erro: $e')),
         data: (templates) => templates.isEmpty
@@ -141,12 +157,6 @@ class _WorkoutListScreenState extends ConsumerState<WorkoutListScreen> {
                   child: child,
                 ),
               ),
-      ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: _showCreateDialog,
-        icon: const Icon(Icons.add),
-        label: const Text('Novo Treino'),
-      ),
     );
   }
 }

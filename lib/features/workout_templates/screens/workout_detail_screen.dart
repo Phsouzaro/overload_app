@@ -5,6 +5,7 @@ import '../../../core/database/repositories/workout_repository.dart';
 import '../../../core/database/tables.dart';
 import '../../active_session/providers/session_providers.dart';
 import '../../active_session/screens/active_session_screen.dart';
+import '../../active_session/widgets/active_session_banner.dart';
 import '../providers/workout_providers.dart';
 import 'exercise_picker_screen.dart';
 
@@ -74,6 +75,7 @@ class _WorkoutDetailScreenState extends ConsumerState<WorkoutDetailScreen> {
   }
 
   Future<void> _startSession() async {
+    if (!await ensureNoActiveSession(context, ref) || !mounted) return;
     final sessionId = await ref
         .read(sessionRepositoryProvider)
         .startSession(widget.templateId);

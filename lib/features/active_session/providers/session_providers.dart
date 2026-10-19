@@ -5,7 +5,7 @@ import '../../../core/database/repositories/report_repository.dart';
 import '../../../core/database/repositories/session_repository.dart';
 import '../../../core/services/rest_notification_service.dart';
 export '../../../core/database/repositories/session_repository.dart'
-    show FinishedSessionSummary, SessionSetDetail;
+    show ActiveSessionSummary, FinishedSessionSummary, SessionSetDetail;
 
 final sessionRepositoryProvider = Provider<SessionRepository>((ref) {
   return SessionRepository(ref.watch(databaseProvider));
@@ -38,6 +38,10 @@ final exercisePrWeightProvider =
     FutureProvider.autoDispose.family<double?, int>((ref, exerciseId) {
   return ReportRepository(ref.watch(databaseProvider))
       .getExerciseMaxWeight(exerciseId);
+});
+
+final activeSessionProvider = StreamProvider<ActiveSessionSummary?>((ref) {
+  return ref.watch(sessionRepositoryProvider).watchActiveSession();
 });
 
 final finishedSessionsProvider =

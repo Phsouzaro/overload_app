@@ -268,6 +268,44 @@ void main() {
   // ║ finishSession / discardSession / startSession                            ║
   // ╚══════════════════════════════════════════════════════════════════════════╝
 
+  group('SessionRepository — sessão em andamento', () {
+    test('getActiveSession retorna null quando todas estão finalizadas',
+        () async {
+      final tplId = await _insertTemplate(db);
+      await _insertSession(db, tplId);
+
+      expect(await repo.getActiveSession(), isNull);
+    });
+
+    test('getActiveSession retorna a sessão não finalizada com o treino',
+        () async {
+      final tplId = await _insertTemplate(db, name: 'Treino B');
+      await _insertSession(db, tplId);
+      final ativa = await _insertSession(db, tplId, finished: false);
+
+      final active = await repo.getActiveSession();
+      expect(active!.session.id, ativa);
+      expect(active.templateName, 'Treino B');
+    });
+
+    test('watchActiveSession emite null depois de encerrar', () async {
+      final tplId = await _insertTemplate(db);
+      final ativa = await _insertSession(db, tplId, finished: false);
+
+      final emissions = <int?>[];
+      final sub = repo
+          .watchActiveSession()
+          .listen((a) => emissions.add(a?.session.id));
+      await pumpEventQueue();
+      await repo.finishSession(ativa);
+      await pumpEventQueue();
+      await sub.cancel();
+
+      expect(emissions.first, ativa);
+      expect(emissions.last, isNull);
+    });
+  });
+
   group('SessionRepository — ciclo de vida da sessão', () {
     test('getSession expõe startedAt/finishedAt usados para a duração',
         () async {

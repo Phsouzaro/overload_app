@@ -24,7 +24,7 @@ Aplicativo Android de gerenciamento de treinos desenvolvido em Flutter. Permite 
 - **Estimativa de 1RM** (Epley) exibida em tempo real para séries de carga
 - **Detecção de Personal Record**: série confirmada com carga acima do histórico recebe destaque âmbar e ícone de troféu
 - Cronômetro da sessão baseado no horário de início salvo, com tela sempre ligada (wakelock)
-- Saída protegida: continuar, encerrar ou sair sem salvar (descarta a sessão)
+- Saída protegida: encerrar, **continuar depois** ou descartar. Um treino pausado aparece na tela inicial para ser retomado ou descartado
 - Tela de resumo ao encerrar: duração, total de séries e volume total. Séries deixadas em branco são descartadas
 
 ### Histórico
@@ -161,7 +161,7 @@ Os dados iniciais precisam acessar as classes `Companion` geradas pelo Drift (ex
 Ao iniciar uma sessão, o `startSession` busca a última sessão finalizada em que cada exercício teve séries preenchidas (em qualquer template) e pré-cria o mesmo número de `SessionSets` vazios. Os valores anteriores chegam como "hints" via `previousSetsProvider` e preenchem os campos — o usuário ainda precisa confirmar cada série. Ao encerrar, as séries que ficaram vazias são apagadas, e todas as consultas usam `isFilledSet` para ignorá-las.
 
 ### Ciclo de vida da sessão
-Só existe uma sessão ativa por vez. "Sair sem salvar" apaga a sessão com `discardSession`. Cronômetro e descanso são calculados a partir de horários absolutos (`startedAt`, fim do descanso), então continuam corretos com o app em segundo plano.
+Só existe uma sessão ativa (sem `finishedAt`) por vez, exposta por `activeSessionProvider`. Ao iniciar outro treino com uma sessão em andamento, o app pergunta se deve retomá-la ou descartá-la; "Descartar" apaga a sessão com `discardSession`. Cronômetro e descanso são calculados a partir de horários absolutos (`startedAt`, fim do descanso), então continuam corretos com o app em segundo plano.
 
 ### Detecção de Personal Record
 O `exercisePrWeightProvider` consulta o maior peso registrado em séries não-aquecimento de sessões **finalizadas**. Como a sessão atual não está finalizada, ela é automaticamente excluída da comparação. Qualquer série confirmada que supere esse valor (ou a primeira série de um exercício, quando não há histórico) é destacada.
