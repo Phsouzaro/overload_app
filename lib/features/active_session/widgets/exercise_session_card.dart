@@ -14,7 +14,7 @@ import 'set_row_widget.dart';
 class ExerciseSessionCard extends ConsumerWidget {
   final SessionExerciseWithExercise item;
   final int templateId;
-  final void Function(int restSeconds) onSetConfirmed;
+  final void Function(int restSeconds, String exerciseName) onSetConfirmed;
 
   const ExerciseSessionCard({
     super.key,
@@ -208,7 +208,8 @@ class ExerciseSessionCard extends ConsumerWidget {
                                 isWarmup: isWarmup,
                                 toFailure: toFailure,
                               );
-                              onSetConfirmed(exercise.restSeconds);
+                              onSetConfirmed(
+                                  exercise.restSeconds, exercise.name);
                             },
                             onDelete: () => repo.deleteSet(e.value.id),
                           ),

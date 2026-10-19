@@ -3,12 +3,16 @@ import '../../../core/database/app_database.dart';
 import '../../../core/database/database_provider.dart';
 import '../../../core/database/repositories/report_repository.dart';
 import '../../../core/database/repositories/session_repository.dart';
+import '../../../core/services/rest_notification_service.dart';
 export '../../../core/database/repositories/session_repository.dart'
     show FinishedSessionSummary, SessionSetDetail;
 
 final sessionRepositoryProvider = Provider<SessionRepository>((ref) {
   return SessionRepository(ref.watch(databaseProvider));
 });
+
+final restNotificationServiceProvider =
+    Provider<RestNotificationService>((_) => RestNotificationService());
 
 final sessionExercisesProvider =
     StreamProvider.family<List<SessionExerciseWithExercise>, int>(

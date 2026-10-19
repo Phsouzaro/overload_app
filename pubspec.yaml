@@ -45,6 +45,7 @@ dependencies:
 
   # Notificações (timer de descanso)
   flutter_local_notifications: ^18.0.0
+  timezone: ^0.10.0
 
   # Export
   pdf: ^3.11.0

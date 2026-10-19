@@ -1,8 +1,10 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:wakelock_plus/wakelock_plus.dart';
+import '../../../core/services/rest_notification_service.dart';
 import '../providers/session_providers.dart';
 import '../widgets/exercise_session_card.dart';
 import 'session_summary_screen.dart';
@@ -42,10 +44,14 @@ class _ActiveSessionScreenState extends ConsumerState<ActiveSessionScreen> {
     return ms > 0 ? (ms / 1000).ceil() : null;
   }
 
+  late final RestNotificationService _restNotifications;
+
   @override
   void initState() {
     super.initState();
     WakelockPlus.enable();
+    _restNotifications = ref.read(restNotificationServiceProvider);
+    _restNotifications.ensureInitialized();
     ref
         .read(sessionRepositoryProvider)
         .getSession(widget.sessionId)
@@ -55,7 +61,10 @@ class _ActiveSessionScreenState extends ConsumerState<ActiveSessionScreen> {
     _ticker = Timer.periodic(const Duration(seconds: 1), (_) {
       if (!mounted) return;
       setState(() {
-        if (_restEndsAt != null && _restCountdown == null) _restEndsAt = null;
+        if (_restEndsAt != null && _restCountdown == null) {
+          _restEndsAt = null;
+          HapticFeedback.heavyImpact();
+        }
       });
     });
   }
@@ -63,20 +72,26 @@ class _ActiveSessionScreenState extends ConsumerState<ActiveSessionScreen> {
   @override
   void dispose() {
     _ticker.cancel();
+    _restNotifications.cancel();
     WakelockPlus.disable();
     super.dispose();
   }
 
-  void _startRestTimer(int seconds) {
+  void _startRestTimer(int seconds, String exerciseName) {
     if (seconds == 0) return;
     setState(() {
       _restEndsAt = DateTime.now().add(Duration(seconds: seconds));
       _totalRest = seconds;
     });
+    _restNotifications.schedule(
+      Duration(seconds: seconds),
+      exerciseName: exerciseName,
+    );
   }
 
   void _skipRest() {
     setState(() => _restEndsAt = null);
+    _restNotifications.cancel();
   }
 
   Future<void> _finishSession() async {
