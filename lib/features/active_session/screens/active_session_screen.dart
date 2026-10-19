@@ -138,7 +138,13 @@ class _ActiveSessionScreenState extends ConsumerState<ActiveSessionScreen> {
           .finishSession(widget.sessionId);
       return true;
     }
-    return result == 'exit';
+    if (result == 'exit' && mounted) {
+      await ref
+          .read(sessionRepositoryProvider)
+          .discardSession(widget.sessionId);
+      return true;
+    }
+    return false;
   }
 
   @override

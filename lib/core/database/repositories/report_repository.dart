@@ -2,6 +2,7 @@ import 'dart:math';
 
 import 'package:drift/drift.dart';
 import '../app_database.dart';
+import 'session_repository.dart' show isFilledSet;
 
 class ExerciseHistoryEntry {
   final DateTime date;
@@ -127,7 +128,7 @@ class ReportRepository {
       final se = row.readTable(_db.sessionExercises);
 
       final sets = await (_db.select(_db.sessionSets)
-            ..where((s) => s.sessionExerciseId.equals(se.id))
+            ..where((s) => s.sessionExerciseId.equals(se.id) & isFilledSet(s))
             ..orderBy([(s) => OrderingTerm.asc(s.position)]))
           .get();
 
@@ -202,7 +203,8 @@ class ReportRepository {
       final sets = await (_db.select(_db.sessionSets)
             ..where((s) =>
                 s.sessionExerciseId.isIn(ids) &
-                s.isWarmup.equals(false)))
+                s.isWarmup.equals(false) &
+                isFilledSet(s)))
           .get();
 
       final volume = sets.fold<double>(0, (sum, s) {

@@ -311,4 +311,47 @@ void main() {
       expect(await repo.getExerciseMaxWeight(exId), 110.0);
     });
   });
+
+  // ╔══════════════════════════════════════════════════════════════════════════╗
+  // ║ Séries vazias (pré-criadas e não preenchidas)                            ║
+  // ╚══════════════════════════════════════════════════════════════════════════╝
+
+  group('ReportRepository — séries vazias', () {
+    test('getExerciseHistory não inclui séries vazias', () async {
+      final exId = await _insertExercise(db);
+      final tplId = await _insertTemplate(db);
+      final sessionId = await _insertSession(db, tplId);
+      final seId = await _insertSessionExercise(db, sessionId, exId);
+      await _insertSet(db, seId, weightKg: 100, reps: 8, position: 0);
+      await _insertSet(db, seId, position: 1);
+
+      final history = await repo.getExerciseHistory(exId);
+      expect(history.first.sets.length, 1);
+    });
+
+    test('getExerciseHistory omite sessão que só tem séries vazias', () async {
+      final exId = await _insertExercise(db);
+      final tplId = await _insertTemplate(db);
+      final sessionId = await _insertSession(db, tplId);
+      final seId = await _insertSessionExercise(db, sessionId, exId);
+      await _insertSet(db, seId);
+
+      expect(await repo.getExerciseHistory(exId), isEmpty);
+    });
+
+    test('getWorkoutProgress conta apenas séries preenchidas', () async {
+      final exId = await _insertExercise(db);
+      final tplId = await _insertTemplate(db);
+      final sessionId = await _insertSession(db, tplId);
+      final seId = await _insertSessionExercise(db, sessionId, exId);
+      await _insertSet(db, seId, weightKg: 100, reps: 8, position: 0);
+      await _insertSet(db, seId, weightKg: 100, reps: 6, position: 1);
+      await _insertSet(db, seId, position: 2);
+
+      final points = await repo.getWorkoutProgress(tplId);
+      expect(points.length, 1);
+      expect(points.first.totalSets, 2);
+      expect(points.first.volume, 1400.0);
+    });
+  });
 }

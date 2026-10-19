@@ -127,6 +127,25 @@ class _SetRowWidgetState extends State<SetRowWidget> {
     final reps = int.tryParse(_repsController.text);
     final duration = int.tryParse(_durationController.text);
 
+    final missing = switch (widget.set.setType) {
+      SetType.weight => weightKg == null || reps == null || reps <= 0,
+      SetType.time => duration == null || duration <= 0,
+      SetType.bodyweight => reps == null || reps <= 0,
+    };
+    if (missing) {
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(SnackBar(
+          content: Text(switch (widget.set.setType) {
+            SetType.weight => 'Preencha carga e repetições',
+            SetType.time => 'Preencha a duração',
+            SetType.bodyweight => 'Preencha as repetições',
+          }),
+          duration: const Duration(seconds: 2),
+        ));
+      return;
+    }
+
     await widget.onConfirm(weightKg, reps, duration, _isWarmup, _toFailure);
     if (mounted) setState(() => _confirmed = true);
   }

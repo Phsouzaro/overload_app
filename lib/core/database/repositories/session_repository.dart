@@ -31,6 +31,11 @@ class SessionSetDetail {
   const SessionSetDetail({required this.exercise, required this.sets});
 }
 
+/// Série com algum valor registrado. As séries pré-criadas que o usuário não
+/// preencheu ficam com tudo nulo e não devem contar em resumos e históricos.
+Expression<bool> isFilledSet($SessionSetsTable s) =>
+    s.weightKg.isNotNull() | s.reps.isNotNull() | s.durationSeconds.isNotNull();
+
 class SessionRepository {
   final AppDatabase _db;
 
@@ -38,6 +43,15 @@ class SessionRepository {
 
   Future<int> startSession(int templateId) {
     return _db.transaction(() async {
+      // Só existe uma sessão ativa por vez: qualquer sessão não finalizada
+      // ainda no banco foi abandonada (ex: app encerrado no meio do treino).
+      final stale = await (_db.select(_db.sessions)
+            ..where((s) => s.finishedAt.isNull()))
+          .get();
+      for (final session in stale) {
+        await _deleteSessionData(session.id);
+      }
+
       final sessionId = await _db.into(_db.sessions).insert(
             SessionsCompanion.insert(
               templateId: templateId,
@@ -161,9 +175,41 @@ class SessionRepository {
         .go();
   }
 
+  /// Finaliza a sessão, descartando as séries que ficaram sem valores.
   Future<void> finishSession(int sessionId) {
-    return (_db.update(_db.sessions)..where((s) => s.id.equals(sessionId)))
-        .write(SessionsCompanion(finishedAt: Value(DateTime.now())));
+    return _db.transaction(() async {
+      await (_db.delete(_db.sessionSets)
+            ..where((s) =>
+                s.sessionExerciseId.isInQuery(_sessionExerciseIds(sessionId)) &
+                isFilledSet(s).not()))
+          .go();
+
+      await (_db.update(_db.sessions)..where((s) => s.id.equals(sessionId)))
+          .write(SessionsCompanion(finishedAt: Value(DateTime.now())));
+    });
+  }
+
+  /// Apaga a sessão e tudo que foi registrado nela ("Sair sem salvar").
+  Future<void> discardSession(int sessionId) {
+    return _db.transaction(() => _deleteSessionData(sessionId));
+  }
+
+  Future<void> _deleteSessionData(int sessionId) async {
+    await (_db.delete(_db.sessionSets)
+          ..where((s) =>
+              s.sessionExerciseId.isInQuery(_sessionExerciseIds(sessionId))))
+        .go();
+    await (_db.delete(_db.sessionExercises)
+          ..where((se) => se.sessionId.equals(sessionId)))
+        .go();
+    await (_db.delete(_db.sessions)..where((s) => s.id.equals(sessionId)))
+        .go();
+  }
+
+  BaseSelectStatement _sessionExerciseIds(int sessionId) {
+    return _db.selectOnly(_db.sessionExercises)
+      ..addColumns([_db.sessionExercises.id])
+      ..where(_db.sessionExercises.sessionId.equals(sessionId));
   }
 
   /// Retorna as séries (não-aquecimento) da última vez que [exerciseId] foi
@@ -171,16 +217,23 @@ class SessionRepository {
   Future<List<SessionSet>> getPreviousSets(
       int templateId, int exerciseId) async {
     // Busca o sessionExercise mais recente para esse exercício em qualquer
-    // sessão finalizada, independente do template.
+    // sessão finalizada, independente do template, que tenha ao menos uma
+    // série de trabalho preenchida.
     final query = _db.select(_db.sessionExercises).join([
       innerJoin(
         _db.sessions,
         _db.sessions.id.equalsExp(_db.sessionExercises.sessionId),
       ),
+      innerJoin(
+        _db.sessionSets,
+        _db.sessionSets.sessionExerciseId.equalsExp(_db.sessionExercises.id),
+      ),
     ])
       ..where(
         _db.sessionExercises.exerciseId.equals(exerciseId) &
-            _db.sessions.finishedAt.isNotNull(),
+            _db.sessions.finishedAt.isNotNull() &
+            _db.sessionSets.isWarmup.equals(false) &
+            isFilledSet(_db.sessionSets),
       )
       ..orderBy([OrderingTerm.desc(_db.sessions.startedAt)])
       ..limit(1);
@@ -192,7 +245,9 @@ class SessionRepository {
 
     return (_db.select(_db.sessionSets)
           ..where((s) =>
-              s.sessionExerciseId.equals(se.id) & s.isWarmup.equals(false))
+              s.sessionExerciseId.equals(se.id) &
+              s.isWarmup.equals(false) &
+              isFilledSet(s))
           ..orderBy([(s) => OrderingTerm.asc(s.position)]))
         .get();
   }
@@ -232,7 +287,7 @@ class SessionRepository {
       final exercise = row.readTable(_db.exercises);
       final seId = row.readTable(_db.sessionExercises).id;
       final sets = await (_db.select(_db.sessionSets)
-            ..where((s) => s.sessionExerciseId.equals(seId))
+            ..where((s) => s.sessionExerciseId.equals(seId) & isFilledSet(s))
             ..orderBy([(s) => OrderingTerm.asc(s.position)]))
           .get();
       result.add(SessionSetDetail(exercise: exercise, sets: sets));
@@ -252,7 +307,9 @@ class SessionRepository {
     final ids = sessionExercises.map((e) => e.id).toList();
     final sets = await (_db.select(_db.sessionSets)
           ..where((s) =>
-              s.sessionExerciseId.isIn(ids) & s.isWarmup.equals(false)))
+              s.sessionExerciseId.isIn(ids) &
+              s.isWarmup.equals(false) &
+              isFilledSet(s)))
         .get();
 
     final volume = sets.fold<double>(0, (sum, s) {

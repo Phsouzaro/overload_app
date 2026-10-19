@@ -7,6 +7,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
 
 import '../database/app_database.dart';
+import '../database/repositories/session_repository.dart' show isFilledSet;
 import '../database/tables.dart';
 
 class ExportService {
@@ -87,7 +88,8 @@ class ExportService {
         _db.workoutTemplates.id.equalsExp(_db.sessions.templateId),
       ),
     ])
-      ..where(_db.sessions.finishedAt.isNotNull())
+      ..where(_db.sessions.finishedAt.isNotNull() &
+          isFilledSet(_db.sessionSets))
       ..orderBy([
         OrderingTerm.asc(_db.sessions.startedAt),
         OrderingTerm.asc(_db.sessionExercises.id),

@@ -206,5 +206,161 @@ void main() {
       expect(setsSupino.first.weightKg, 100.0);
       expect(setsAgach.first.weightKg, 120.0);
     });
+
+    test('ignora séries vazias (pré-criadas e não preenchidas)', () async {
+      final exId = await _insertExercise(db);
+      final tplId = await _insertTemplate(db);
+      final sessId = await _insertSession(db, tplId);
+      final seId = await _insertSessionExercise(db, sessId, exId);
+      await _insertSet(db, seId, weightKg: 100, reps: 8, position: 0);
+      await _insertSet(db, seId, position: 1); // vazia
+
+      final sets = await repo.getPreviousSets(tplId, exId);
+      expect(sets.length, 1);
+      expect(sets.first.weightKg, 100.0);
+    });
+
+    test(
+        'pula a sessão mais recente quando ela só tem séries vazias e usa a '
+        'anterior', () async {
+      final exId = await _insertExercise(db);
+      final tplId = await _insertTemplate(db);
+
+      final antiga =
+          await _insertSession(db, tplId, startedAt: DateTime(2024, 1, 1));
+      final seAntiga = await _insertSessionExercise(db, antiga, exId);
+      await _insertSet(db, seAntiga, weightKg: 90, reps: 10);
+
+      final recente =
+          await _insertSession(db, tplId, startedAt: DateTime(2024, 2, 1));
+      final seRecente = await _insertSessionExercise(db, recente, exId);
+      await _insertSet(db, seRecente, position: 0);
+      await _insertSet(db, seRecente, position: 1);
+
+      final sets = await repo.getPreviousSets(tplId, exId);
+      expect(sets.length, 1);
+      expect(sets.first.weightKg, 90.0);
+    });
+  });
+
+  // ╔══════════════════════════════════════════════════════════════════════════╗
+  // ║ getSessionSummary                                                        ║
+  // ╚══════════════════════════════════════════════════════════════════════════╝
+
+  group('SessionRepository.getSessionSummary', () {
+    test('não conta séries vazias nem aquecimento', () async {
+      final exId = await _insertExercise(db);
+      final tplId = await _insertTemplate(db);
+      final sessId = await _insertSession(db, tplId);
+      final seId = await _insertSessionExercise(db, sessId, exId);
+      await _insertSet(db, seId, weightKg: 50, reps: 10, isWarmup: true);
+      await _insertSet(db, seId, weightKg: 100, reps: 8, position: 1);
+      await _insertSet(db, seId, position: 2); // vazia
+      await _insertSet(db, seId, position: 3); // vazia
+
+      final summary = await repo.getSessionSummary(sessId);
+      expect(summary.totalSets, 1);
+      expect(summary.totalVolume, 800.0);
+    });
+  });
+
+  // ╔══════════════════════════════════════════════════════════════════════════╗
+  // ║ finishSession / discardSession / startSession                            ║
+  // ╚══════════════════════════════════════════════════════════════════════════╝
+
+  group('SessionRepository — ciclo de vida da sessão', () {
+    test('finishSession remove séries vazias e mantém as preenchidas',
+        () async {
+      final exId = await _insertExercise(db);
+      final tplId = await _insertTemplate(db);
+      final sessId = await _insertSession(db, tplId, finished: false);
+      final seId = await _insertSessionExercise(db, sessId, exId);
+      await _insertSet(db, seId, weightKg: 100, reps: 8, position: 0);
+      await _insertSet(db, seId, position: 1);
+
+      await repo.finishSession(sessId);
+
+      final sets = await db.select(db.sessionSets).get();
+      expect(sets.length, 1);
+      expect(sets.first.weightKg, 100.0);
+
+      final session = await (db.select(db.sessions)
+            ..where((s) => s.id.equals(sessId)))
+          .getSingle();
+      expect(session.finishedAt, isNotNull);
+    });
+
+    test('finishSession não mexe nas séries de outras sessões', () async {
+      final exId = await _insertExercise(db);
+      final tplId = await _insertTemplate(db);
+      final outra = await _insertSession(db, tplId);
+      final seOutra = await _insertSessionExercise(db, outra, exId);
+      await _insertSet(db, seOutra); // vazia, legado
+
+      final sessId = await _insertSession(db, tplId, finished: false);
+      await _insertSessionExercise(db, sessId, exId);
+
+      await repo.finishSession(sessId);
+
+      expect((await db.select(db.sessionSets).get()).length, 1);
+    });
+
+    test('discardSession apaga sessão, exercícios e séries', () async {
+      final exId = await _insertExercise(db);
+      final tplId = await _insertTemplate(db);
+      final mantida = await _insertSession(db, tplId);
+      final seMantida = await _insertSessionExercise(db, mantida, exId);
+      await _insertSet(db, seMantida, weightKg: 80, reps: 10);
+
+      final sessId = await _insertSession(db, tplId, finished: false);
+      final seId = await _insertSessionExercise(db, sessId, exId);
+      await _insertSet(db, seId, weightKg: 100, reps: 8);
+
+      await repo.discardSession(sessId);
+
+      final sessions = await db.select(db.sessions).get();
+      expect(sessions.map((s) => s.id), [mantida]);
+      final ses = await db.select(db.sessionExercises).get();
+      expect(ses.map((se) => se.id), [seMantida]);
+      final sets = await db.select(db.sessionSets).get();
+      expect(sets.length, 1);
+      expect(sets.first.weightKg, 80.0);
+    });
+
+    test('startSession remove sessões não finalizadas abandonadas', () async {
+      final exId = await _insertExercise(db);
+      final tplId = await _insertTemplate(db);
+      await db.into(db.templateExercises).insert(
+            TemplateExercisesCompanion.insert(
+              templateId: tplId,
+              exerciseId: exId,
+              position: 0,
+            ),
+          );
+
+      final finalizada = await _insertSession(db, tplId);
+      final seFin = await _insertSessionExercise(db, finalizada, exId);
+      await _insertSet(db, seFin, weightKg: 100, reps: 8);
+
+      final abandonada = await _insertSession(db, tplId, finished: false);
+      final seAb = await _insertSessionExercise(db, abandonada, exId);
+      await _insertSet(db, seAb, weightKg: 200, reps: 1);
+
+      final novaId = await repo.startSession(tplId);
+
+      final ids = (await db.select(db.sessions).get()).map((s) => s.id);
+      expect(ids, containsAll([finalizada, novaId]));
+      expect(ids, isNot(contains(abandonada)));
+
+      // Nova sessão pré-cria 1 série vazia (baseada na sessão finalizada)
+      final novaSe = await (db.select(db.sessionExercises)
+            ..where((se) => se.sessionId.equals(novaId)))
+          .getSingle();
+      final novaSets = await (db.select(db.sessionSets)
+            ..where((s) => s.sessionExerciseId.equals(novaSe.id)))
+          .get();
+      expect(novaSets.length, 1);
+      expect(novaSets.first.weightKg, isNull);
+    });
   });
 }
