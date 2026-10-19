@@ -178,7 +178,7 @@ class _ActiveSessionScreenState extends ConsumerState<ActiveSessionScreen> {
       onPopInvokedWithResult: (didPop, _) async {
         if (!didPop) {
           final shouldPop = await _onWillPop();
-          if (shouldPop && mounted) Navigator.pop(context);
+          if (shouldPop && context.mounted) Navigator.pop(context);
         }
       },
       child: Scaffold(
@@ -280,7 +280,7 @@ class _RestTimerBanner extends StatelessWidget {
             child: LinearProgressIndicator(
               value: progress,
               backgroundColor:
-                  Theme.of(context).colorScheme.onPrimaryContainer.withOpacity(0.2),
+                  Theme.of(context).colorScheme.onPrimaryContainer.withValues(alpha: 0.2),
             ),
           ),
           TextButton(

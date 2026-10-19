@@ -93,7 +93,7 @@ class ExerciseSessionCard extends ConsumerWidget {
             // ── Sessão anterior ──────────────────────────────────────────
             prevAsync.when(
               loading: () => const SizedBox(),
-              error: (_, __) => const SizedBox(),
+              error: (_, _) => const SizedBox(),
               data: (prev) {
                 if (prev.isEmpty) return const SizedBox();
 
@@ -408,7 +408,7 @@ class _ExerciseHistorySheet extends ConsumerWidget {
                   controller: scrollController,
                   padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
                   itemCount: entries.length,
-                  separatorBuilder: (_, __) => const Divider(height: 1),
+                  separatorBuilder: (_, _) => const Divider(height: 1),
                   itemBuilder: (context, index) {
                     final entry = entries[index];
                     final workingSets = entry.sets

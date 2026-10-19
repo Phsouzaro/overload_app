@@ -65,7 +65,7 @@ class _AddExerciseScreenState extends ConsumerState<AddExerciseScreen> {
             ),
             const SizedBox(height: 20),
             DropdownButtonFormField<String>(
-              value: _selectedMuscleGroup,
+              initialValue: _selectedMuscleGroup,
               decoration: const InputDecoration(
                 labelText: 'Grupo muscular',
                 border: OutlineInputBorder(),

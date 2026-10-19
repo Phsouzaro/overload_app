@@ -65,7 +65,7 @@ class ReportLineChart extends StatelessWidget {
             barWidth: 2.5,
             dotData: FlDotData(
               show: true,
-              getDotPainter: (_, __, ___, ____) => FlDotCirclePainter(
+              getDotPainter: (_, _, _, _) => FlDotCirclePainter(
                 radius: 3,
                 color: chartColor,
                 strokeWidth: 0,
@@ -74,7 +74,7 @@ class ReportLineChart extends StatelessWidget {
             ),
             belowBarData: BarAreaData(
               show: true,
-              color: chartColor.withOpacity(0.08),
+              color: chartColor.withValues(alpha: 0.08),
             ),
           ),
         ],
@@ -116,7 +116,7 @@ class ReportLineChart extends StatelessWidget {
           show: true,
           drawVerticalLine: false,
           getDrawingHorizontalLine: (_) => FlLine(
-            color: Theme.of(context).colorScheme.outline.withOpacity(0.15),
+            color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.15),
             strokeWidth: 1,
           ),
         ),

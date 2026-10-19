@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import '../../../core/database/app_database.dart';
+import '../../reports/providers/report_providers.dart';
 import '../providers/workout_providers.dart';
 import '../../../features/session_history/screens/session_history_screen.dart';
 import 'archived_workouts_screen.dart';
@@ -124,9 +125,7 @@ class _WorkoutListScreenState extends ConsumerState<WorkoutListScreen> {
                   key: ValueKey(templates[index].id),
                   template: templates[index],
                 ),
-                onReorder: (oldIndex, newIndex) {
-                  // Standard ReorderableListView index correction
-                  if (newIndex > oldIndex) newIndex--;
+                onReorderItem: (oldIndex, newIndex) {
                   final reordered = List<WorkoutTemplate>.from(templates);
                   final item = reordered.removeAt(oldIndex);
                   reordered.insert(newIndex, item);
@@ -297,7 +296,7 @@ class _TemplateCard extends ConsumerWidget {
       case _TemplateAction.share:
         try {
           await ref
-              .read(templateExportServiceProvider)
+              .read(exportServiceProvider)
               .exportTemplate(template.id);
         } catch (e) {
           if (context.mounted) {

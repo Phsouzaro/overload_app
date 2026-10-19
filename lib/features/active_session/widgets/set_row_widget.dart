@@ -163,8 +163,8 @@ class _SetRowWidgetState extends State<SetRowWidget> {
       decoration: _confirmed
           ? BoxDecoration(
               color: isPR
-                  ? Colors.amber.withOpacity(0.12)
-                  : cs.primaryContainer.withOpacity(0.15),
+                  ? Colors.amber.withValues(alpha: 0.12)
+                  : cs.primaryContainer.withValues(alpha: 0.15),
               borderRadius: BorderRadius.circular(8),
             )
           : null,

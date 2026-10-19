@@ -72,9 +72,7 @@ class SessionDetailScreen extends ConsumerWidget {
             }
             return sum;
           });
-          final duration = finishedAt != null
-              ? finishedAt!.difference(startedAt).inSeconds
-              : null;
+          final duration = finishedAt?.difference(startedAt).inSeconds;
 
           return ListView(
             padding: const EdgeInsets.all(16),

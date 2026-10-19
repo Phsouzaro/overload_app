@@ -237,7 +237,7 @@ class _CreateShortcutTile extends StatelessWidget {
         borderRadius: BorderRadius.circular(12),
         child: DashedBorder(
           borderRadius: BorderRadius.circular(12),
-          color: cs.primary.withOpacity(0.5),
+          color: cs.primary.withValues(alpha: 0.5),
           child: Padding(
             padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 16),
             child: Row(
@@ -448,7 +448,7 @@ class _QuickCreateSheetState extends ConsumerState<_QuickCreateSheet> {
 
               // Muscle group
               DropdownButtonFormField<String>(
-                value: _selectedMuscleGroup,
+                initialValue: _selectedMuscleGroup,
                 decoration: const InputDecoration(
                   labelText: 'Grupo muscular',
                   border: OutlineInputBorder(),

@@ -55,7 +55,7 @@ class _WorkoutDetailScreenState extends ConsumerState<WorkoutDetailScreen> {
             : ReorderableListView.builder(
                 padding: const EdgeInsets.only(bottom: 88),
                 itemCount: _localList.length,
-                onReorder: _onReorder,
+                onReorderItem: _onReorder,
                 itemBuilder: (context, index) {
                   final item = _localList[index];
                   return _ExerciseItem(
@@ -103,7 +103,6 @@ class _WorkoutDetailScreenState extends ConsumerState<WorkoutDetailScreen> {
   }
 
   void _onReorder(int oldIndex, int newIndex) {
-    if (newIndex > oldIndex) newIndex--;
     setState(() {
       _reordering = true;
       final item = _localList.removeAt(oldIndex);

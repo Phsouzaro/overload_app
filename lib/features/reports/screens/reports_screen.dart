@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../../../core/database/app_database.dart';
 import '../../../core/database/repositories/report_repository.dart';
 import '../../../core/utils/unit_converter.dart';
 import '../../exercise_library/providers/exercise_providers.dart';
@@ -96,9 +95,9 @@ class _ExerciseReportTab extends ConsumerWidget {
         // Seletor de exercício
         exercisesAsync.when(
           loading: () => const LinearProgressIndicator(),
-          error: (_, __) => const SizedBox(),
+          error: (_, _) => const SizedBox(),
           data: (exercises) => DropdownButtonFormField<int>(
-            value: selectedId,
+            initialValue: selectedId,
             decoration: const InputDecoration(
               labelText: 'Selecione um exercício',
               border: OutlineInputBorder(),
@@ -190,9 +189,9 @@ class _WorkoutReportTab extends ConsumerWidget {
         // Seletor de treino
         templatesAsync.when(
           loading: () => const LinearProgressIndicator(),
-          error: (_, __) => const SizedBox(),
+          error: (_, _) => const SizedBox(),
           data: (templates) => DropdownButtonFormField<int>(
-            value: selectedId,
+            initialValue: selectedId,
             decoration: const InputDecoration(
               labelText: 'Selecione um treino',
               border: OutlineInputBorder(),

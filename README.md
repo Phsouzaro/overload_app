@@ -9,32 +9,37 @@ Aplicativo Android de gerenciamento de treinos desenvolvido em Flutter. Permite 
 ### Treinos
 - Criar, renomear e arquivar templates de treino
 - Visualizar e restaurar treinos arquivados
-- Reordenar exercícios dentro de um template via drag-and-drop
-- Adicionar exercícios ao template a partir da biblioteca global
+- Reordenar treinos na tela inicial e exercícios dentro de um template via drag-and-drop
+- Adicionar exercícios ao template a partir da biblioteca global (ou criar um novo direto no seletor)
+- **Compartilhar e importar templates** em arquivo `.overload` (JSON). A importação é tudo-ou-nada e reaproveita exercícios da biblioteca pelo nome
 
 ### Sessão Ativa
 - Iniciar uma sessão a partir de um template
-- Séries pré-preenchidas com os pesos e repetições da última sessão para referência imediata
+- Séries pré-criadas com base na última vez em que cada exercício foi feito (em qualquer treino), com os valores anteriores como sugestão
 - Chip **"↑ X kg"** exibindo o peso máximo da sessão anterior por exercício
-- Suporte a três tipos de série: **carga** (kg × reps), **tempo** (segundos) e **peso corporal** (reps)
-- Toggle de aquecimento e toggle de "até a falha" por série
-- Timer de descanso com countdown e barra de progresso ao confirmar cada série
+- Histórico completo do exercício em um bottom sheet, sem sair da sessão
+- Suporte a três tipos de série: **carga** (peso × reps), **tempo** (segundos) e **peso corporal** (reps)
+- Toggle de aquecimento e toggle de "até a falha" por série; série só é confirmada com os campos obrigatórios preenchidos
+- Timer de descanso com countdown e barra de progresso ao confirmar cada série, com **notificação e vibração** ao terminar (funciona com o app em segundo plano)
 - **Estimativa de 1RM** (Epley) exibida em tempo real para séries de carga
 - **Detecção de Personal Record**: série confirmada com carga acima do histórico recebe destaque âmbar e ícone de troféu
-- Timer global da sessão com tela sempre ligada (wakelock)
-- Navegação de saída protegida (continuar, encerrar ou descartar)
-- Tela de resumo ao encerrar: duração, total de séries e volume total
+- Cronômetro da sessão baseado no horário de início salvo, com tela sempre ligada (wakelock)
+- Saída protegida: continuar, encerrar ou sair sem salvar (descarta a sessão)
+- Tela de resumo ao encerrar: duração, total de séries e volume total. Séries deixadas em branco são descartadas
+
+### Histórico
+- Lista de sessões finalizadas com duração
+- Detalhe de cada sessão com todas as séries por exercício
 
 ### Biblioteca de Exercícios
 - ~45 exercícios pré-cadastrados em 8 grupos musculares
 - Busca por nome e filtro por grupo muscular
-- Cadastro de exercícios personalizados com nome, grupo muscular, tipo de série e tempo de descanso padrão
+- Cadastro e edição de exercícios personalizados com nome, grupo muscular, tipo de série e tempo de descanso padrão
+- Histórico de cargas por exercício
 - Arquivamento de exercícios com verificação de histórico
 
 ### Perfil & Peso Corporal
-- Registro de peso com data
-- Edição de registros existentes (peso e data)
-- Exclusão de registros
+- Registro, edição e exclusão de pesos com data
 - Gráfico de evolução do peso com seleção de período (1 semana / 1 mês / 6 meses)
 
 ### Relatórios
@@ -43,18 +48,23 @@ Aplicativo Android de gerenciamento de treinos desenvolvido em Flutter. Permite 
 - Filtro de período: 1 mês / 3 meses / 6 meses / tudo
 - **Export CSV**: exporta todo o histórico de sessões (data, treino, exercício, carga, reps, volume, etc.) via compartilhamento nativo do Android
 
+### Configurações
+- Unidade de peso **kg ou lbs**, aplicada em todo o app (o banco sempre guarda kg)
+- Descanso padrão para novos exercícios
+
 ---
 
 ## Stack
 
 | Camada | Tecnologia |
 |---|---|
-| UI | Flutter 3.44 / Dart 3.12 |
-| Estado | Riverpod 2 (`Provider`, `StateProvider`, `StreamProvider`, `FutureProvider`, `.family`, `.autoDispose`) |
+| UI | Flutter 3.47 / Dart 3.13 |
+| Estado | Riverpod 2 (`Provider`, `StateProvider`, `NotifierProvider`, `StreamProvider`, `FutureProvider`, `.family`, `.autoDispose`) |
 | Banco de dados | Drift (SQLite) com geração de código via `build_runner` |
 | Gráficos | fl_chart |
-| Export | csv + share_plus |
-| Utilidades | intl, wakelock_plus, path_provider |
+| Export / Import | csv, share_plus, file_picker |
+| Notificações | flutter_local_notifications + timezone |
+| Utilidades | intl, wakelock_plus, path_provider, shared_preferences, flutter_svg |
 
 ---
 
@@ -62,7 +72,7 @@ Aplicativo Android de gerenciamento de treinos desenvolvido em Flutter. Permite 
 
 ```
 lib/
-├── main.dart                        # Inicialização, locale pt_BR
+├── main.dart                        # Inicialização, locale pt_BR, SharedPreferences
 ├── app.dart                         # MaterialApp, tema, NavigationBar
 │
 ├── core/
@@ -79,47 +89,28 @@ lib/
 │   │       ├── exercise_repository.dart      # CRUD da biblioteca de exercícios
 │   │       ├── session_repository.dart       # Sessões, séries, pré-população
 │   │       ├── body_weight_repository.dart   # Registros de peso corporal
-│   │       └── report_repository.dart        # Queries de progresso e PR
+│   │       └── report_repository.dart        # Queries de progresso, histórico e PR
 │   ├── services/
-│   │   └── export_service.dart      # Geração e compartilhamento do CSV
+│   │   ├── export_service.dart              # CSV e compartilhamento de templates
+│   │   ├── import_service.dart              # Importação de templates .overload
+│   │   └── rest_notification_service.dart   # Notificação do fim do descanso
 │   ├── theme/
 │   │   └── app_theme.dart           # Tema escuro com seed color #6C63FF
 │   └── utils/
-│       └── one_rm_calculator.dart   # Fórmula de Epley para 1RM
+│       ├── one_rm_calculator.dart   # Fórmula de Epley para 1RM
+│       └── unit_converter.dart      # Conversão e formatação kg/lbs
 │
 └── features/
-    ├── workout_templates/
-    │   ├── providers/workout_providers.dart
-    │   └── screens/
-    │       ├── workout_list_screen.dart      # Lista com swipe-to-archive
-    │       ├── workout_detail_screen.dart    # Reorder + gerenciar exercícios
-    │       ├── exercise_picker_screen.dart   # Seletor da biblioteca
-    │       └── archived_workouts_screen.dart # Treinos arquivados + restaurar
-    │
-    ├── exercise_library/
-    │   ├── providers/exercise_providers.dart
-    │   └── screens/
-    │       ├── exercise_library_screen.dart  # Busca e filtros
-    │       └── add_exercise_screen.dart      # Formulário de cadastro
-    │
-    ├── active_session/
-    │   ├── providers/session_providers.dart
-    │   └── screens/
-    │   │   ├── active_session_screen.dart    # Tela principal da sessão
-    │   │   └── session_summary_screen.dart   # Resumo pós-treino
-    │   └── widgets/
-    │       ├── exercise_session_card.dart    # Card por exercício com hints e PR
-    │       └── set_row_widget.dart           # Linha de série com inputs e PR badge
-    │
-    ├── reports/
-    │   ├── providers/report_providers.dart
-    │   ├── screens/reports_screen.dart       # Tabs por exercício e por treino
-    │   └── widgets/report_chart.dart         # Componente de gráfico reutilizável
-    │
-    └── profile/
-        ├── providers/profile_providers.dart
-        └── screens/profile_screen.dart       # Peso corporal + gráfico
+    ├── workout_templates/           # Lista, detalhe, seletor e arquivados
+    ├── exercise_library/            # Biblioteca, cadastro e histórico por exercício
+    ├── active_session/              # Sessão ativa, cards de exercício e resumo
+    ├── session_history/             # Lista e detalhe de sessões finalizadas
+    ├── reports/                     # Relatórios por exercício e por treino
+    ├── profile/                     # Peso corporal + gráfico
+    └── settings/                    # Unidade de peso e descanso padrão
 ```
+
+Cada feature segue o padrão `providers/` + `screens/` (+ `widgets/` quando necessário).
 
 ---
 
@@ -133,13 +124,14 @@ Exercises
   restSeconds, isArchived, createdAt
 
 WorkoutTemplates
-  id, name, isArchived, createdAt
+  id, name, isArchived, createdAt, position
 
 TemplateExercises
-  id, templateId → WorkoutTemplates, exerciseId → Exercises, position
+  id, templateId → WorkoutTemplates, exerciseId → Exercises, position,
+  restSecondsOverride
 
 Sessions
-  id, templateId → WorkoutTemplates, startedAt, finishedAt
+  id, templateId → WorkoutTemplates, startedAt, finishedAt, notes
 
 SessionExercises
   id, sessionId → Sessions, exerciseId → Exercises, position
@@ -166,7 +158,10 @@ Cada domínio tem seu próprio repositório (`WorkoutRepository`, `SessionReposi
 Os dados iniciais precisam acessar as classes `Companion` geradas pelo Drift (ex: `ExercisesCompanion`), que só existem dentro do contexto do `app_database.dart`. Por isso, `seed_data.dart` usa `part of 'app_database.dart'` em vez de ser um arquivo independente.
 
 ### Pré-população de séries
-Ao iniciar uma nova sessão, o `startSession` consulta as séries da última sessão finalizada para aquele template e pré-cria o mesmo número de `SessionSets` vazios (sem valores no banco). Os valores da sessão anterior chegam como "hints" via `previousSetsProvider` e preenchem os controllers de texto — o usuário ainda precisa confirmar cada série explicitamente. O `didUpdateWidget` garante que os campos sejam preenchidos mesmo quando o provider resolve após a renderização inicial.
+Ao iniciar uma sessão, o `startSession` busca a última sessão finalizada em que cada exercício teve séries preenchidas (em qualquer template) e pré-cria o mesmo número de `SessionSets` vazios. Os valores anteriores chegam como "hints" via `previousSetsProvider` e preenchem os campos — o usuário ainda precisa confirmar cada série. Ao encerrar, as séries que ficaram vazias são apagadas, e todas as consultas usam `isFilledSet` para ignorá-las.
+
+### Ciclo de vida da sessão
+Só existe uma sessão ativa por vez. "Sair sem salvar" apaga a sessão com `discardSession`. Cronômetro e descanso são calculados a partir de horários absolutos (`startedAt`, fim do descanso), então continuam corretos com o app em segundo plano.
 
 ### Detecção de Personal Record
 O `exercisePrWeightProvider` consulta o maior peso registrado em séries não-aquecimento de sessões **finalizadas**. Como a sessão atual não está finalizada, ela é automaticamente excluída da comparação. Qualquer série confirmada que supere esse valor (ou a primeira série de um exercício, quando não há histórico) é destacada.
@@ -179,17 +174,13 @@ Fórmula de Epley: `1RM = peso × (1 + reps / 30)`, arredondado para o múltiplo
 ## Como Executar
 
 ### Pré-requisitos
-- Flutter 3.44+ instalado e no PATH
+- Flutter 3.47+ instalado e no PATH
 - Android SDK configurado (`flutter doctor` sem erros críticos)
 - Dispositivo Android físico ou emulador com API 21+
 
 ### Instalação
 
 ```bash
-# Clonar o repositório
-git clone https://github.com/seu-usuario/overload.git
-cd overload
-
 # Instalar dependências
 flutter pub get
 
@@ -198,6 +189,15 @@ dart run build_runner build --delete-conflicting-outputs
 
 # Rodar no dispositivo conectado
 flutter run
+```
+
+### Testes
+
+Os testes unitários usam o Drift com banco SQLite em memória. No Windows, a `sqlite3.dll` ([sqlite.org/download](https://www.sqlite.org/download.html)) precisa estar no PATH.
+
+```bash
+flutter test
+flutter analyze
 ```
 
 ### Build de release
@@ -211,15 +211,12 @@ flutter build apk --release
 
 ## Configuração Android
 
-O arquivo `android/app/build.gradle.kts` requer as seguintes configurações para compatibilidade com `flutter_local_notifications`:
+O `flutter_local_notifications` exige desugaring no `android/app/build.gradle.kts`:
 
 ```kotlin
 android {
     compileOptions {
         isCoreLibraryDesugaringEnabled = true
-    }
-    defaultConfig {
-        minSdk = 21
     }
 }
 
@@ -227,6 +224,8 @@ dependencies {
     coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.4")
 }
 ```
+
+O `AndroidManifest.xml` declara o `ScheduledNotificationReceiver` do plugin e a permissão `SCHEDULE_EXACT_ALARM`. Sem essa permissão concedida, a notificação do descanso é agendada de forma inexata.
 
 ---
 

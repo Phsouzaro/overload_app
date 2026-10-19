@@ -8,7 +8,6 @@ import 'package:share_plus/share_plus.dart';
 
 import '../database/app_database.dart';
 import '../database/repositories/session_repository.dart' show isFilledSet;
-import '../database/tables.dart';
 
 class ExportService {
   final AppDatabase _db;

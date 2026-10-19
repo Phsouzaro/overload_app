@@ -41,7 +41,7 @@ class ProfileScreen extends ConsumerWidget {
           // ── Peso atual ──────────────────────────────────────────────
           recentAsync.when(
             loading: () => const SizedBox(),
-            error: (_, __) => const SizedBox(),
+            error: (_, _) => const SizedBox(),
             data: (entries) => _CurrentWeightCard(
               latestEntry: entries.isEmpty ? null : entries.first,
               unit: unit,
@@ -288,7 +288,7 @@ class _WeightLineChart extends StatelessWidget {
             barWidth: 2.5,
             dotData: FlDotData(
               show: true,
-              getDotPainter: (_, __, ___, ____) => FlDotCirclePainter(
+              getDotPainter: (_, _, _, _) => FlDotCirclePainter(
                 radius: 3,
                 color: color,
                 strokeWidth: 0,
@@ -297,7 +297,7 @@ class _WeightLineChart extends StatelessWidget {
             ),
             belowBarData: BarAreaData(
               show: true,
-              color: color.withOpacity(0.08),
+              color: color.withValues(alpha: 0.08),
             ),
           ),
         ],
@@ -345,7 +345,7 @@ class _WeightLineChart extends StatelessWidget {
             color: Theme.of(context)
                 .colorScheme
                 .outline
-                .withOpacity(0.15),
+                .withValues(alpha: 0.15),
             strokeWidth: 1,
           ),
         ),

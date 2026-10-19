@@ -124,7 +124,7 @@ class ExerciseHistoryScreen extends ConsumerWidget {
                                       ? Theme.of(context)
                                           .colorScheme
                                           .tertiaryContainer
-                                          .withOpacity(0.4)
+                                          .withValues(alpha: 0.4)
                                       : Theme.of(context)
                                           .colorScheme
                                           .surfaceContainerHighest,

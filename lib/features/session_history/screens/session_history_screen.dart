@@ -39,10 +39,8 @@ class SessionHistoryScreen extends ConsumerWidget {
                 itemCount: sessions.length,
                 itemBuilder: (context, index) {
                   final s = sessions[index];
-                  final duration = s.session.finishedAt != null
-                      ? s.session.finishedAt!
-                          .difference(s.session.startedAt)
-                      : null;
+                  final duration = s.session.finishedAt
+                      ?.difference(s.session.startedAt);
 
                   return ListTile(
                     contentPadding: const EdgeInsets.symmetric(
