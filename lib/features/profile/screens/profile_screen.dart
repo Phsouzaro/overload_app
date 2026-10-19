@@ -4,6 +4,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:intl/intl.dart';
 import '../../../core/database/app_database.dart';
+import '../../../core/utils/unit_converter.dart';
+import '../../settings/providers/settings_provider.dart';
 import '../../settings/screens/settings_screen.dart';
 import '../providers/profile_providers.dart';
 
@@ -13,6 +15,7 @@ class ProfileScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final recentAsync = ref.watch(recentBodyWeightEntriesProvider);
+    final unit = ref.watch(settingsProvider).unit;
 
     return Scaffold(
       appBar: AppBar(
@@ -41,6 +44,7 @@ class ProfileScreen extends ConsumerWidget {
             error: (_, __) => const SizedBox(),
             data: (entries) => _CurrentWeightCard(
               latestEntry: entries.isEmpty ? null : entries.first,
+              unit: unit,
             ),
           ),
           const SizedBox(height: 16),
@@ -68,14 +72,15 @@ class ProfileScreen extends ConsumerWidget {
         ],
       ),
       floatingActionButton: FloatingActionButton.extended(
-        onPressed: () => _showAddDialog(context, ref),
+        onPressed: () => _showAddDialog(context, ref, unit),
         icon: const Icon(Icons.add),
         label: const Text('Registrar Peso'),
       ),
     );
   }
 
-  Future<void> _showAddDialog(BuildContext context, WidgetRef ref) async {
+  Future<void> _showAddDialog(
+      BuildContext context, WidgetRef ref, WeightUnit unit) async {
     final controller = TextEditingController();
     final saved = await showDialog<double>(
       context: context,
@@ -86,9 +91,9 @@ class ProfileScreen extends ConsumerWidget {
           autofocus: true,
           keyboardType:
               const TextInputType.numberWithOptions(decimal: true),
-          decoration: const InputDecoration(
-            hintText: 'Ex: 83.5',
-            suffixText: 'kg',
+          decoration: InputDecoration(
+            hintText: unit == WeightUnit.lbs ? 'Ex: 184.0' : 'Ex: 83.5',
+            suffixText: UnitConverter.label(unit),
             border: OutlineInputBorder(),
           ),
           onSubmitted: (v) {
@@ -114,7 +119,9 @@ class ProfileScreen extends ConsumerWidget {
     );
 
     if (saved != null) {
-      await ref.read(bodyWeightRepositoryProvider).addEntry(saved);
+      await ref
+          .read(bodyWeightRepositoryProvider)
+          .addEntry(UnitConverter.fromDisplay(saved, unit));
     }
   }
 }
@@ -123,8 +130,9 @@ class ProfileScreen extends ConsumerWidget {
 
 class _CurrentWeightCard extends StatelessWidget {
   final BodyWeightEntry? latestEntry;
+  final WeightUnit unit;
 
-  const _CurrentWeightCard({required this.latestEntry});
+  const _CurrentWeightCard({required this.latestEntry, required this.unit});
 
   @override
   Widget build(BuildContext context) {
@@ -144,8 +152,8 @@ class _CurrentWeightCard extends StatelessWidget {
                     style: Theme.of(context).textTheme.bodySmall),
                 Text(
                   latestEntry != null
-                      ? '${latestEntry!.weightKg.toStringAsFixed(1)} kg'
-                      : '— kg',
+                      ? UnitConverter.format(latestEntry!.weightKg, unit)
+                      : '— ${UnitConverter.label(unit)}',
                   style: Theme.of(context).textTheme.headlineMedium?.copyWith(
                         fontWeight: FontWeight.bold,
                       ),
@@ -175,6 +183,7 @@ class _WeightChartSection extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final selectedPeriod = ref.watch(selectedWeightPeriodProvider);
     final entriesAsync = ref.watch(bodyWeightChartEntriesProvider);
+    final unit = ref.watch(settingsProvider).unit;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -210,7 +219,7 @@ class _WeightChartSection extends ConsumerWidget {
             error: (e, _) => Center(child: Text('Erro: $e')),
             data: (entries) => entries.length < 2
                 ? const _EmptyChart()
-                : _WeightLineChart(entries: entries),
+                : _WeightLineChart(entries: entries, unit: unit),
           ),
         ),
       ],
@@ -243,19 +252,22 @@ class _EmptyChart extends StatelessWidget {
 
 class _WeightLineChart extends StatelessWidget {
   final List<BodyWeightEntry> entries;
+  final WeightUnit unit;
 
-  const _WeightLineChart({required this.entries});
+  const _WeightLineChart({required this.entries, required this.unit});
 
   @override
   Widget build(BuildContext context) {
     final color = Theme.of(context).colorScheme.primary;
-    final spots = entries
+    final weights = entries
+        .map((e) => UnitConverter.toDisplay(e.weightKg, unit))
+        .toList();
+    final spots = weights
         .asMap()
         .entries
-        .map((e) => FlSpot(e.key.toDouble(), e.value.weightKg))
+        .map((e) => FlSpot(e.key.toDouble(), e.value))
         .toList();
 
-    final weights = entries.map((e) => e.weightKg).toList();
     final minY = (weights.reduce((a, b) => a < b ? a : b) - 2)
         .floorToDouble();
     final maxY = (weights.reduce((a, b) => a > b ? a : b) + 2)
@@ -299,7 +311,7 @@ class _WeightLineChart extends StatelessWidget {
               showTitles: true,
               reservedSize: 44,
               getTitlesWidget: (value, _) => Text(
-                '${value.toStringAsFixed(1)}kg',
+                '${value.toStringAsFixed(1)}${UnitConverter.label(unit)}',
                 style: const TextStyle(fontSize: 10),
               ),
             ),
@@ -344,7 +356,7 @@ class _WeightLineChart extends StatelessWidget {
                 Theme.of(context).colorScheme.surfaceContainerHighest,
             getTooltipItems: (spots) => spots
                 .map((s) => LineTooltipItem(
-                      '${entries[s.x.toInt()].weightKg.toStringAsFixed(1)} kg\n'
+                      '${UnitConverter.format(entries[s.x.toInt()].weightKg, unit)}\n'
                       '${DateFormat('dd/MM/yy').format(entries[s.x.toInt()].recordedAt)}',
                       TextStyle(
                           color: Theme.of(context).colorScheme.onSurface,
@@ -367,11 +379,12 @@ class _HistoryItem extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final unit = ref.watch(settingsProvider).unit;
     return ListTile(
       contentPadding: EdgeInsets.zero,
       leading: const Icon(Icons.monitor_weight_outlined),
       title: Text(
-        '${entry.weightKg.toStringAsFixed(1)} kg',
+        UnitConverter.format(entry.weightKg, unit),
         style: Theme.of(context).textTheme.titleMedium,
       ),
       subtitle: Text(
@@ -383,7 +396,7 @@ class _HistoryItem extends ConsumerWidget {
         children: [
           IconButton(
             icon: const Icon(Icons.edit_outlined),
-            onPressed: () => _showEditDialog(context, ref),
+            onPressed: () => _showEditDialog(context, ref, unit),
           ),
           IconButton(
             icon: Icon(Icons.delete_outline,
@@ -417,9 +430,10 @@ class _HistoryItem extends ConsumerWidget {
     );
   }
 
-  Future<void> _showEditDialog(BuildContext context, WidgetRef ref) async {
-    final weightController =
-        TextEditingController(text: entry.weightKg.toStringAsFixed(1));
+  Future<void> _showEditDialog(
+      BuildContext context, WidgetRef ref, WeightUnit unit) async {
+    final weightController = TextEditingController(
+        text: UnitConverter.toDisplay(entry.weightKg, unit).toStringAsFixed(1));
     DateTime selectedDate = entry.recordedAt;
 
     final saved = await showDialog<({double weight, DateTime date})>(
@@ -435,10 +449,10 @@ class _HistoryItem extends ConsumerWidget {
                 autofocus: true,
                 keyboardType:
                     const TextInputType.numberWithOptions(decimal: true),
-                decoration: const InputDecoration(
+                decoration: InputDecoration(
                   labelText: 'Peso',
-                  suffixText: 'kg',
-                  border: OutlineInputBorder(),
+                  suffixText: UnitConverter.label(unit),
+                  border: const OutlineInputBorder(),
                 ),
               ),
               const SizedBox(height: 16),
@@ -488,7 +502,8 @@ class _HistoryItem extends ConsumerWidget {
     if (saved != null) {
       await ref
           .read(bodyWeightRepositoryProvider)
-          .updateEntry(entry.id, saved.weight, saved.date);
+          .updateEntry(entry.id, UnitConverter.fromDisplay(saved.weight, unit),
+              saved.date);
     }
   }
 }

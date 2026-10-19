@@ -224,7 +224,7 @@ class ExerciseSessionCard extends ConsumerWidget {
                                     Theme.of(context).colorScheme.primary),
                             const SizedBox(width: 4),
                             Text(
-                              '1RM estimado: ~${oneRm.toStringAsFixed(1)}kg',
+                              '1RM estimado: ~${UnitConverter.format(oneRm, unit)}',
                               style: Theme.of(context)
                                   .textTheme
                                   .bodySmall
