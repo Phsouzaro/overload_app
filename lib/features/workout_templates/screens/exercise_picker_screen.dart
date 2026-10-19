@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../../core/utils/rest_formatter.dart';
 import '../../../core/constants/muscle_groups.dart';
 import '../../../core/database/app_database.dart';
 import '../../../core/database/tables.dart';
@@ -390,13 +391,6 @@ class _QuickCreateSheetState extends ConsumerState<_QuickCreateSheet> {
     if (mounted) Navigator.pop(context, exercise);
   }
 
-  String _formatRest(int s) {
-    if (s == 0) return 'Sem descanso';
-    if (s < 60) return '${s}s';
-    final m = s ~/ 60;
-    final r = s % 60;
-    return r == 0 ? '${m}min' : '${m}min ${r}s';
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -497,7 +491,7 @@ class _QuickCreateSheetState extends ConsumerState<_QuickCreateSheet> {
                     child: Text('Descanso padrão',
                         style: Theme.of(context).textTheme.labelLarge),
                   ),
-                  Text(_formatRest(_restSeconds),
+                  Text(formatRest(_restSeconds),
                       style: Theme.of(context).textTheme.titleMedium),
                 ],
               ),
@@ -506,7 +500,7 @@ class _QuickCreateSheetState extends ConsumerState<_QuickCreateSheet> {
                 min: 0,
                 max: 300,
                 divisions: 20,
-                label: _formatRest(_restSeconds),
+                label: formatRest(_restSeconds),
                 onChanged: (v) =>
                     setState(() => _restSeconds = v.toInt()),
               ),

@@ -11,6 +11,7 @@ Aplicativo Android de gerenciamento de treinos desenvolvido em Flutter. Permite 
 - Visualizar e restaurar treinos arquivados
 - Reordenar treinos na tela inicial e exercícios dentro de um template via drag-and-drop
 - Adicionar exercícios ao template a partir da biblioteca global (ou criar um novo direto no seletor)
+- **Descanso por treino**: tocar num exercício do template define um descanso só para aquele treino, sem mudar o padrão do exercício
 - **Compartilhar e importar templates** em arquivo `.overload` (JSON). A importação é tudo-ou-nada e reaproveita exercícios da biblioteca pelo nome
 
 ### Sessão Ativa
@@ -134,7 +135,8 @@ Sessions
   id, templateId → WorkoutTemplates, startedAt, finishedAt, notes
 
 SessionExercises
-  id, sessionId → Sessions, exerciseId → Exercises, position
+  id, sessionId → Sessions, exerciseId → Exercises, position,
+  restSeconds (descanso usado na sessão; v3)
 
 SessionSets
   id, sessionExerciseId → SessionExercises, setType,

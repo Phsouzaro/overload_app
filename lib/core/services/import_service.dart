@@ -134,6 +134,13 @@ class ImportService {
               templateId: templateId,
               exerciseId: exerciseId,
               position: i,
+              // Exercício reaproveitado com outro descanso: o do arquivo vale
+              // só para este treino, sem mudar o padrão da biblioteca.
+              restSecondsOverride: Value(
+                existing != null && existing.restSeconds != restSeconds
+                    ? restSeconds
+                    : null,
+              ),
             ),
           );
     }

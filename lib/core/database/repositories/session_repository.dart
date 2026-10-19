@@ -90,6 +90,8 @@ class SessionRepository {
                 sessionId: sessionId,
                 exerciseId: te.exerciseId,
                 position: i,
+                restSeconds:
+                    Value(te.restSecondsOverride ?? exercise.restSeconds),
               ),
             );
 

@@ -268,6 +268,42 @@ void main() {
   // ║ finishSession / discardSession / startSession                            ║
   // ╚══════════════════════════════════════════════════════════════════════════╝
 
+  group('SessionRepository.startSession — descanso por treino', () {
+    Future<int> linkExercise(int tplId, int exId, {int? restOverride}) =>
+        db.into(db.templateExercises).insert(
+              TemplateExercisesCompanion.insert(
+                templateId: tplId,
+                exerciseId: exId,
+                position: 0,
+                restSecondsOverride: Value(restOverride),
+              ),
+            );
+
+    Future<int?> sessionRest(int sessionId) async =>
+        (await (db.select(db.sessionExercises)
+                  ..where((se) => se.sessionId.equals(sessionId)))
+                .getSingle())
+            .restSeconds;
+
+    test('usa o descanso definido no treino quando existe', () async {
+      final exId = await _insertExercise(db); // padrão do exercício: 90s
+      final tplId = await _insertTemplate(db);
+      await linkExercise(tplId, exId, restOverride: 150);
+
+      final sessId = await repo.startSession(tplId);
+      expect(await sessionRest(sessId), 150);
+    });
+
+    test('sem override usa o padrão do exercício', () async {
+      final exId = await _insertExercise(db);
+      final tplId = await _insertTemplate(db);
+      await linkExercise(tplId, exId);
+
+      final sessId = await repo.startSession(tplId);
+      expect(await sessionRest(sessId), 90);
+    });
+  });
+
   group('SessionRepository — sessão em andamento', () {
     test('getActiveSession retorna null quando todas estão finalizadas',
         () async {

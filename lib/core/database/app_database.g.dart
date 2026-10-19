@@ -1593,8 +1593,25 @@ class $SessionExercisesTable extends SessionExercises
     type: DriftSqlType.int,
     requiredDuringInsert: true,
   );
+  static const VerificationMeta _restSecondsMeta = const VerificationMeta(
+    'restSeconds',
+  );
   @override
-  List<GeneratedColumn> get $columns => [id, sessionId, exerciseId, position];
+  late final GeneratedColumn<int> restSeconds = GeneratedColumn<int>(
+    'rest_seconds',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    sessionId,
+    exerciseId,
+    position,
+    restSeconds,
+  ];
   @override
   String get aliasedName => _alias ?? actualTableName;
   @override
@@ -1634,6 +1651,15 @@ class $SessionExercisesTable extends SessionExercises
     } else if (isInserting) {
       context.missing(_positionMeta);
     }
+    if (data.containsKey('rest_seconds')) {
+      context.handle(
+        _restSecondsMeta,
+        restSeconds.isAcceptableOrUnknown(
+          data['rest_seconds']!,
+          _restSecondsMeta,
+        ),
+      );
+    }
     return context;
   }
 
@@ -1659,6 +1685,10 @@ class $SessionExercisesTable extends SessionExercises
         DriftSqlType.int,
         data['${effectivePrefix}position'],
       )!,
+      restSeconds: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}rest_seconds'],
+      ),
     );
   }
 
@@ -1673,11 +1703,13 @@ class SessionExercise extends DataClass implements Insertable<SessionExercise> {
   final int sessionId;
   final int exerciseId;
   final int position;
+  final int? restSeconds;
   const SessionExercise({
     required this.id,
     required this.sessionId,
     required this.exerciseId,
     required this.position,
+    this.restSeconds,
   });
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
@@ -1686,6 +1718,9 @@ class SessionExercise extends DataClass implements Insertable<SessionExercise> {
     map['session_id'] = Variable<int>(sessionId);
     map['exercise_id'] = Variable<int>(exerciseId);
     map['position'] = Variable<int>(position);
+    if (!nullToAbsent || restSeconds != null) {
+      map['rest_seconds'] = Variable<int>(restSeconds);
+    }
     return map;
   }
 
@@ -1695,6 +1730,9 @@ class SessionExercise extends DataClass implements Insertable<SessionExercise> {
       sessionId: Value(sessionId),
       exerciseId: Value(exerciseId),
       position: Value(position),
+      restSeconds: restSeconds == null && nullToAbsent
+          ? const Value.absent()
+          : Value(restSeconds),
     );
   }
 
@@ -1708,6 +1746,7 @@ class SessionExercise extends DataClass implements Insertable<SessionExercise> {
       sessionId: serializer.fromJson<int>(json['sessionId']),
       exerciseId: serializer.fromJson<int>(json['exerciseId']),
       position: serializer.fromJson<int>(json['position']),
+      restSeconds: serializer.fromJson<int?>(json['restSeconds']),
     );
   }
   @override
@@ -1718,6 +1757,7 @@ class SessionExercise extends DataClass implements Insertable<SessionExercise> {
       'sessionId': serializer.toJson<int>(sessionId),
       'exerciseId': serializer.toJson<int>(exerciseId),
       'position': serializer.toJson<int>(position),
+      'restSeconds': serializer.toJson<int?>(restSeconds),
     };
   }
 
@@ -1726,11 +1766,13 @@ class SessionExercise extends DataClass implements Insertable<SessionExercise> {
     int? sessionId,
     int? exerciseId,
     int? position,
+    Value<int?> restSeconds = const Value.absent(),
   }) => SessionExercise(
     id: id ?? this.id,
     sessionId: sessionId ?? this.sessionId,
     exerciseId: exerciseId ?? this.exerciseId,
     position: position ?? this.position,
+    restSeconds: restSeconds.present ? restSeconds.value : this.restSeconds,
   );
   SessionExercise copyWithCompanion(SessionExercisesCompanion data) {
     return SessionExercise(
@@ -1740,6 +1782,9 @@ class SessionExercise extends DataClass implements Insertable<SessionExercise> {
           ? data.exerciseId.value
           : this.exerciseId,
       position: data.position.present ? data.position.value : this.position,
+      restSeconds: data.restSeconds.present
+          ? data.restSeconds.value
+          : this.restSeconds,
     );
   }
 
@@ -1749,13 +1794,15 @@ class SessionExercise extends DataClass implements Insertable<SessionExercise> {
           ..write('id: $id, ')
           ..write('sessionId: $sessionId, ')
           ..write('exerciseId: $exerciseId, ')
-          ..write('position: $position')
+          ..write('position: $position, ')
+          ..write('restSeconds: $restSeconds')
           ..write(')'))
         .toString();
   }
 
   @override
-  int get hashCode => Object.hash(id, sessionId, exerciseId, position);
+  int get hashCode =>
+      Object.hash(id, sessionId, exerciseId, position, restSeconds);
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
@@ -1763,7 +1810,8 @@ class SessionExercise extends DataClass implements Insertable<SessionExercise> {
           other.id == this.id &&
           other.sessionId == this.sessionId &&
           other.exerciseId == this.exerciseId &&
-          other.position == this.position);
+          other.position == this.position &&
+          other.restSeconds == this.restSeconds);
 }
 
 class SessionExercisesCompanion extends UpdateCompanion<SessionExercise> {
@@ -1771,17 +1819,20 @@ class SessionExercisesCompanion extends UpdateCompanion<SessionExercise> {
   final Value<int> sessionId;
   final Value<int> exerciseId;
   final Value<int> position;
+  final Value<int?> restSeconds;
   const SessionExercisesCompanion({
     this.id = const Value.absent(),
     this.sessionId = const Value.absent(),
     this.exerciseId = const Value.absent(),
     this.position = const Value.absent(),
+    this.restSeconds = const Value.absent(),
   });
   SessionExercisesCompanion.insert({
     this.id = const Value.absent(),
     required int sessionId,
     required int exerciseId,
     required int position,
+    this.restSeconds = const Value.absent(),
   }) : sessionId = Value(sessionId),
        exerciseId = Value(exerciseId),
        position = Value(position);
@@ -1790,12 +1841,14 @@ class SessionExercisesCompanion extends UpdateCompanion<SessionExercise> {
     Expression<int>? sessionId,
     Expression<int>? exerciseId,
     Expression<int>? position,
+    Expression<int>? restSeconds,
   }) {
     return RawValuesInsertable({
       if (id != null) 'id': id,
       if (sessionId != null) 'session_id': sessionId,
       if (exerciseId != null) 'exercise_id': exerciseId,
       if (position != null) 'position': position,
+      if (restSeconds != null) 'rest_seconds': restSeconds,
     });
   }
 
@@ -1804,12 +1857,14 @@ class SessionExercisesCompanion extends UpdateCompanion<SessionExercise> {
     Value<int>? sessionId,
     Value<int>? exerciseId,
     Value<int>? position,
+    Value<int?>? restSeconds,
   }) {
     return SessionExercisesCompanion(
       id: id ?? this.id,
       sessionId: sessionId ?? this.sessionId,
       exerciseId: exerciseId ?? this.exerciseId,
       position: position ?? this.position,
+      restSeconds: restSeconds ?? this.restSeconds,
     );
   }
 
@@ -1828,6 +1883,9 @@ class SessionExercisesCompanion extends UpdateCompanion<SessionExercise> {
     if (position.present) {
       map['position'] = Variable<int>(position.value);
     }
+    if (restSeconds.present) {
+      map['rest_seconds'] = Variable<int>(restSeconds.value);
+    }
     return map;
   }
 
@@ -1837,7 +1895,8 @@ class SessionExercisesCompanion extends UpdateCompanion<SessionExercise> {
           ..write('id: $id, ')
           ..write('sessionId: $sessionId, ')
           ..write('exerciseId: $exerciseId, ')
-          ..write('position: $position')
+          ..write('position: $position, ')
+          ..write('restSeconds: $restSeconds')
           ..write(')'))
         .toString();
   }
@@ -3541,6 +3600,7 @@ typedef $$SessionExercisesTableCreateCompanionBuilder =
       required int sessionId,
       required int exerciseId,
       required int position,
+      Value<int?> restSeconds,
     });
 typedef $$SessionExercisesTableUpdateCompanionBuilder =
     SessionExercisesCompanion Function({
@@ -3548,6 +3608,7 @@ typedef $$SessionExercisesTableUpdateCompanionBuilder =
       Value<int> sessionId,
       Value<int> exerciseId,
       Value<int> position,
+      Value<int?> restSeconds,
     });
 
 class $$SessionExercisesTableFilterComposer
@@ -3576,6 +3637,11 @@ class $$SessionExercisesTableFilterComposer
 
   ColumnFilters<int> get position => $composableBuilder(
     column: $table.position,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get restSeconds => $composableBuilder(
+    column: $table.restSeconds,
     builder: (column) => ColumnFilters(column),
   );
 }
@@ -3608,6 +3674,11 @@ class $$SessionExercisesTableOrderingComposer
     column: $table.position,
     builder: (column) => ColumnOrderings(column),
   );
+
+  ColumnOrderings<int> get restSeconds => $composableBuilder(
+    column: $table.restSeconds,
+    builder: (column) => ColumnOrderings(column),
+  );
 }
 
 class $$SessionExercisesTableAnnotationComposer
@@ -3632,6 +3703,11 @@ class $$SessionExercisesTableAnnotationComposer
 
   GeneratedColumn<int> get position =>
       $composableBuilder(column: $table.position, builder: (column) => column);
+
+  GeneratedColumn<int> get restSeconds => $composableBuilder(
+    column: $table.restSeconds,
+    builder: (column) => column,
+  );
 }
 
 class $$SessionExercisesTableTableManager
@@ -3675,11 +3751,13 @@ class $$SessionExercisesTableTableManager
                 Value<int> sessionId = const Value.absent(),
                 Value<int> exerciseId = const Value.absent(),
                 Value<int> position = const Value.absent(),
+                Value<int?> restSeconds = const Value.absent(),
               }) => SessionExercisesCompanion(
                 id: id,
                 sessionId: sessionId,
                 exerciseId: exerciseId,
                 position: position,
+                restSeconds: restSeconds,
               ),
           createCompanionCallback:
               ({
@@ -3687,11 +3765,13 @@ class $$SessionExercisesTableTableManager
                 required int sessionId,
                 required int exerciseId,
                 required int position,
+                Value<int?> restSeconds = const Value.absent(),
               }) => SessionExercisesCompanion.insert(
                 id: id,
                 sessionId: sessionId,
                 exerciseId: exerciseId,
                 position: position,
+                restSeconds: restSeconds,
               ),
           withReferenceMapper: (p0) => p0
               .map((e) => (e.readTable(table), BaseReferences(db, table, e)))

@@ -257,6 +257,32 @@ void main() {
       expect(beta.restSeconds, 60);
     });
 
+    test(
+        'exercício reaproveitado com descanso diferente vira descanso do '
+        'treino, sem alterar a biblioteca', () async {
+      // "Exercício Fictício Gamma" já existe com 90s; o arquivo traz 60s.
+      final gammaId = await db.into(db.exercises).insert(
+            ExercisesCompanion.insert(
+              name: 'Exercício Fictício Gamma',
+              muscleGroup: 'Grupo Teste',
+              setType: SetType.weight,
+              restSeconds: const Value(90),
+            ),
+          );
+
+      await service.parseAndImport(_jsonMistoComSeed);
+
+      final gamma = await (db.select(db.exercises)
+            ..where((e) => e.id.equals(gammaId)))
+          .getSingle();
+      expect(gamma.restSeconds, 90);
+
+      final link = await (db.select(db.templateExercises)
+            ..where((te) => te.exerciseId.equals(gammaId)))
+          .getSingle();
+      expect(link.restSecondsOverride, 60);
+    });
+
     test('setType é salvo corretamente', () async {
       await service.parseAndImport(_jsonDoisNovos);
 

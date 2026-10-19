@@ -6,6 +6,7 @@ import '../../../core/database/tables.dart';
 import '../../active_session/providers/session_providers.dart';
 import '../../active_session/screens/active_session_screen.dart';
 import '../../active_session/widgets/active_session_banner.dart';
+import '../../../core/utils/rest_formatter.dart';
 import '../providers/workout_providers.dart';
 import 'exercise_picker_screen.dart';
 
@@ -63,6 +64,7 @@ class _WorkoutDetailScreenState extends ConsumerState<WorkoutDetailScreen> {
                     key: ValueKey(item.templateExercise.id),
                     item: item,
                     onRemove: () => _removeExercise(item),
+                    onEditRest: () => _editRest(item),
                   );
                 },
               ),
@@ -72,6 +74,61 @@ class _WorkoutDetailScreenState extends ConsumerState<WorkoutDetailScreen> {
         child: const Icon(Icons.add),
       ),
     );
+  }
+
+  Future<void> _editRest(TemplateExerciseWithDetails item) async {
+    final defaultRest = item.exercise.restSeconds;
+    var value = item.templateExercise.restSecondsOverride ?? defaultRest;
+
+    // Retorno: null = cancelou; -1 = voltar ao padrão; >= 0 = novo valor.
+    final result = await showDialog<int>(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setState) => AlertDialog(
+          title: Text('Descanso — ${item.exercise.name}'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Vale só para este treino. Padrão do exercício: '
+                '${formatRest(defaultRest)}',
+                style: Theme.of(context).textTheme.bodySmall,
+              ),
+              const SizedBox(height: 16),
+              Center(
+                child: Text(formatRest(value),
+                    style: Theme.of(context).textTheme.headlineSmall),
+              ),
+              Slider(
+                value: value.toDouble(),
+                min: 0,
+                max: 300,
+                divisions: 20,
+                label: formatRest(value),
+                onChanged: (v) => setState(() => value = v.toInt()),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, -1),
+              child: const Text('Usar padrão'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(context, value),
+              child: const Text('Salvar'),
+            ),
+          ],
+        ),
+      ),
+    );
+
+    if (result == null) return;
+    await ref.read(workoutRepositoryProvider).setRestOverride(
+          item.templateExercise.id,
+          result < 0 || result == defaultRest ? null : result,
+        );
   }
 
   Future<void> _startSession() async {
@@ -168,13 +225,22 @@ class _EmptyState extends StatelessWidget {
 class _ExerciseItem extends StatelessWidget {
   final TemplateExerciseWithDetails item;
   final VoidCallback onRemove;
+  final VoidCallback onEditRest;
 
-  const _ExerciseItem({super.key, required this.item, required this.onRemove});
+  const _ExerciseItem({
+    super.key,
+    required this.item,
+    required this.onRemove,
+    required this.onEditRest,
+  });
 
   @override
   Widget build(BuildContext context) {
     final exercise = item.exercise;
+    final override = item.templateExercise.restSecondsOverride;
+    final cs = Theme.of(context).colorScheme;
     return ListTile(
+      onTap: onEditRest,
       contentPadding: const EdgeInsets.only(left: 16, right: 8),
       leading: CircleAvatar(
         backgroundColor: Theme.of(context).colorScheme.primaryContainer,
@@ -185,7 +251,20 @@ class _ExerciseItem extends StatelessWidget {
         ),
       ),
       title: Text(exercise.name),
-      subtitle: Text(exercise.muscleGroup),
+      subtitle: Text.rich(TextSpan(children: [
+        TextSpan(text: '${exercise.muscleGroup} · '),
+        WidgetSpan(
+          alignment: PlaceholderAlignment.middle,
+          child: Icon(Icons.timer_outlined,
+              size: 13, color: override != null ? cs.primary : null),
+        ),
+        TextSpan(
+          text: ' ${formatRest(override ?? exercise.restSeconds)}',
+          style: override != null
+              ? TextStyle(color: cs.primary, fontWeight: FontWeight.w600)
+              : null,
+        ),
+      ])),
       trailing: Row(
         mainAxisSize: MainAxisSize.min,
         children: [

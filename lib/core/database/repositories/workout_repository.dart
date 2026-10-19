@@ -118,6 +118,14 @@ class WorkoutRepository {
         );
   }
 
+  /// Define o descanso do exercício neste treino; `null` volta ao padrão do
+  /// exercício.
+  Future<void> setRestOverride(int templateExerciseId, int? seconds) {
+    return (_db.update(_db.templateExercises)
+          ..where((te) => te.id.equals(templateExerciseId)))
+        .write(TemplateExercisesCompanion(restSecondsOverride: Value(seconds)));
+  }
+
   Future<void> removeExerciseFromTemplate(int templateExerciseId) {
     return (_db.delete(_db.templateExercises)
           ..where((te) => te.id.equals(templateExerciseId)))

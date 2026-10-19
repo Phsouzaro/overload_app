@@ -23,7 +23,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.forTesting(super.e);
 
   @override
-  int get schemaVersion => 2;
+  int get schemaVersion => 3;
 
   @override
   MigrationStrategy get migration {
@@ -46,6 +46,9 @@ class AppDatabase extends _$AppDatabase {
                   ..where((t) => t.id.equals(rows[i].id)))
                 .write(WorkoutTemplatesCompanion(position: Value(i)));
           }
+        }
+        if (from < 3) {
+          await m.addColumn(sessionExercises, sessionExercises.restSeconds);
         }
       },
       beforeOpen: (_) async {

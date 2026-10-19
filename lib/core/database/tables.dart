@@ -41,6 +41,9 @@ class SessionExercises extends Table {
   IntColumn get sessionId => integer().references(Sessions, #id)();
   IntColumn get exerciseId => integer().references(Exercises, #id)();
   IntColumn get position => integer()();
+  // Descanso usado nesta sessão (override do treino ou padrão do exercício),
+  // copiado no início. Nulo em sessões anteriores à v3: usa o do exercício.
+  IntColumn get restSeconds => integer().nullable()();
 }
 
 class SessionSets extends Table {

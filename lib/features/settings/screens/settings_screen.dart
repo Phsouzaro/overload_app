@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../../core/utils/rest_formatter.dart';
 import '../../../core/utils/unit_converter.dart';
 import '../providers/settings_provider.dart';
 
@@ -67,14 +68,14 @@ class SettingsScreen extends ConsumerWidget {
                   min: 0,
                   max: 300,
                   divisions: 20,
-                  label: _formatRest(settings.defaultRestSeconds),
+                  label: formatRest(settings.defaultRestSeconds),
                   onChanged: (v) => notifier.setDefaultRest(v.toInt()),
                 ),
               ),
               SizedBox(
                 width: 64,
                 child: Text(
-                  _formatRest(settings.defaultRestSeconds),
+                  formatRest(settings.defaultRestSeconds),
                   style: Theme.of(context).textTheme.titleMedium,
                   textAlign: TextAlign.center,
                 ),
@@ -86,13 +87,6 @@ class SettingsScreen extends ConsumerWidget {
     );
   }
 
-  String _formatRest(int seconds) {
-    if (seconds == 0) return 'Sem descanso';
-    if (seconds < 60) return '${seconds}s';
-    final m = seconds ~/ 60;
-    final s = seconds % 60;
-    return s == 0 ? '${m}min' : '${m}min ${s}s';
-  }
 }
 
 class _SectionTitle extends StatelessWidget {

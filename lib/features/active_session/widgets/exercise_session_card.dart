@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
+import '../../../core/utils/rest_formatter.dart';
 import '../../../core/database/app_database.dart';
 import '../../../core/database/repositories/session_repository.dart';
 import '../../../core/database/tables.dart';
@@ -26,6 +27,8 @@ class ExerciseSessionCard extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final exercise = item.exercise;
+    final restSeconds =
+        item.sessionExercise.restSeconds ?? exercise.restSeconds;
     final setsAsync = ref.watch(sessionSetsProvider(item.sessionExercise.id));
     final prevAsync = ref.watch(
       previousSetsProvider(
@@ -85,7 +88,7 @@ class ExerciseSessionCard extends ConsumerWidget {
                 const SizedBox(width: 4),
                 const Icon(Icons.timer_outlined, size: 14),
                 const SizedBox(width: 4),
-                Text(_formatRest(exercise.restSeconds),
+                Text(formatRest(restSeconds),
                     style: Theme.of(context).textTheme.bodySmall),
               ],
             ),
@@ -209,7 +212,7 @@ class ExerciseSessionCard extends ConsumerWidget {
                                 toFailure: toFailure,
                               );
                               onSetConfirmed(
-                                  exercise.restSeconds, exercise.name);
+                                  restSeconds, exercise.name);
                             },
                             onDelete: () => repo.deleteSet(e.value.id),
                           ),
@@ -279,11 +282,6 @@ class ExerciseSessionCard extends ConsumerWidget {
         SetType.bodyweight => Icons.accessibility_new,
       };
 
-  String _formatRest(int s) {
-    if (s == 0) return 'Sem descanso';
-    if (s < 60) return '${s}s';
-    return '${s ~/ 60}min${s % 60 > 0 ? ' ${s % 60}s' : ''}';
-  }
 
   String _formatSet(SessionSet s, WeightUnit unit) => switch (s.setType) {
         SetType.weight => s.weightKg != null

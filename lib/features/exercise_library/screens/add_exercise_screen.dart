@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../../core/utils/rest_formatter.dart';
 import '../../../core/constants/muscle_groups.dart';
 import '../../../core/database/app_database.dart';
 import '../../../core/database/tables.dart';
@@ -96,7 +97,7 @@ class _AddExerciseScreenState extends ConsumerState<AddExerciseScreen> {
                   ),
                 ),
                 Text(
-                  _formatRest(_restSeconds),
+                  formatRest(_restSeconds),
                   style: Theme.of(context).textTheme.titleMedium,
                 ),
               ],
@@ -106,7 +107,7 @@ class _AddExerciseScreenState extends ConsumerState<AddExerciseScreen> {
               min: 0,
               max: 300,
               divisions: 20,
-              label: _formatRest(_restSeconds),
+              label: formatRest(_restSeconds),
               onChanged: (v) => setState(() => _restSeconds = v.toInt()),
             ),
             const SizedBox(height: 32),
@@ -120,13 +121,6 @@ class _AddExerciseScreenState extends ConsumerState<AddExerciseScreen> {
     );
   }
 
-  String _formatRest(int seconds) {
-    if (seconds == 0) return 'Sem descanso';
-    if (seconds < 60) return '${seconds}s';
-    final m = seconds ~/ 60;
-    final s = seconds % 60;
-    return s == 0 ? '${m}min' : '${m}min ${s}s';
-  }
 
   Future<void> _save() async {
     if (!_formKey.currentState!.validate()) return;
