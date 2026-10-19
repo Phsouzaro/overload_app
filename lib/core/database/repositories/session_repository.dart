@@ -101,6 +101,11 @@ class SessionRepository {
     });
   }
 
+  Future<Session> getSession(int sessionId) {
+    return (_db.select(_db.sessions)..where((s) => s.id.equals(sessionId)))
+        .getSingle();
+  }
+
   Stream<List<SessionExerciseWithExercise>> watchSessionExercises(
       int sessionId) {
     final query = _db.select(_db.sessionExercises).join([

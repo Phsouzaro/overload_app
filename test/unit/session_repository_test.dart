@@ -269,6 +269,30 @@ void main() {
   // ╚══════════════════════════════════════════════════════════════════════════╝
 
   group('SessionRepository — ciclo de vida da sessão', () {
+    test('getSession expõe startedAt/finishedAt usados para a duração',
+        () async {
+      final tplId = await _insertTemplate(db);
+      final sessId = await _insertSession(db, tplId);
+
+      final session = await repo.getSession(sessId);
+      expect(session.startedAt, DateTime(2024, 1, 1));
+      expect(session.finishedAt!.difference(session.startedAt),
+          const Duration(hours: 2));
+    });
+
+    test('finishSession grava finishedAt para a duração do resumo', () async {
+      final tplId = await _insertTemplate(db);
+      final inicio = DateTime.now().subtract(const Duration(minutes: 45));
+      final sessId =
+          await _insertSession(db, tplId, finished: false, startedAt: inicio);
+
+      await repo.finishSession(sessId);
+
+      final session = await repo.getSession(sessId);
+      final duracao = session.finishedAt!.difference(session.startedAt);
+      expect(duracao.inMinutes, inInclusiveRange(44, 46));
+    });
+
     test('finishSession remove séries vazias e mantém as preenchidas',
         () async {
       final exId = await _insertExercise(db);

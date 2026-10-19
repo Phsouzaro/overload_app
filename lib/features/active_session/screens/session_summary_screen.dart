@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../../core/database/app_database.dart';
 import '../../../core/utils/unit_converter.dart';
 import '../../settings/providers/settings_provider.dart';
 import '../providers/session_providers.dart';
@@ -7,25 +8,34 @@ import '../providers/session_providers.dart';
 class SessionSummaryScreen extends ConsumerWidget {
   final int sessionId;
   final String templateName;
-  final int elapsedSeconds;
 
   const SessionSummaryScreen({
     super.key,
     required this.sessionId,
     required this.templateName,
-    required this.elapsedSeconds,
   });
+
+  Future<({Session session, ({int totalSets, double totalVolume}) summary})>
+      _load(WidgetRef ref) async {
+    final repo = ref.read(sessionRepositoryProvider);
+    return (
+      session: await repo.getSession(sessionId),
+      summary: await repo.getSessionSummary(sessionId),
+    );
+  }
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     return Scaffold(
       body: SafeArea(
         child: FutureBuilder(
-          future: ref
-              .read(sessionRepositoryProvider)
-              .getSessionSummary(sessionId),
+          future: _load(ref),
           builder: (context, snapshot) {
-            final data = snapshot.data;
+            final data = snapshot.data?.summary;
+            final session = snapshot.data?.session;
+            final duration = session?.finishedAt
+                ?.difference(session.startedAt)
+                .inSeconds;
             final unit = ref.read(settingsProvider).unit;
             return Center(
               child: Padding(
@@ -57,7 +67,9 @@ class SessionSummaryScreen extends ConsumerWidget {
                         _StatCard(
                           icon: Icons.timer_outlined,
                           label: 'Duração',
-                          value: _formatDuration(elapsedSeconds),
+                          value: duration != null
+                              ? _formatDuration(duration)
+                              : '—',
                         ),
                         _StatCard(
                           icon: Icons.fitness_center,

@@ -25,51 +25,58 @@ class ActiveSessionScreen extends ConsumerStatefulWidget {
 }
 
 class _ActiveSessionScreenState extends ConsumerState<ActiveSessionScreen> {
-  late final Timer _sessionTimer;
-  int _elapsedSeconds = 0;
-
-  Timer? _restTimer;
-  int? _restCountdown;
+  late final Timer _ticker;
+  // Os tempos são derivados de instantes absolutos (e não de contadores), para
+  // continuarem corretos quando o app fica em segundo plano.
+  DateTime? _startedAt;
+  DateTime? _restEndsAt;
   int _totalRest = 0;
+
+  int get _elapsedSeconds => _startedAt == null
+      ? 0
+      : DateTime.now().difference(_startedAt!).inSeconds;
+
+  int? get _restCountdown {
+    if (_restEndsAt == null) return null;
+    final ms = _restEndsAt!.difference(DateTime.now()).inMilliseconds;
+    return ms > 0 ? (ms / 1000).ceil() : null;
+  }
 
   @override
   void initState() {
     super.initState();
     WakelockPlus.enable();
-    _sessionTimer = Timer.periodic(const Duration(seconds: 1), (_) {
-      if (mounted) setState(() => _elapsedSeconds++);
+    ref
+        .read(sessionRepositoryProvider)
+        .getSession(widget.sessionId)
+        .then((session) {
+      if (mounted) setState(() => _startedAt = session.startedAt);
+    });
+    _ticker = Timer.periodic(const Duration(seconds: 1), (_) {
+      if (!mounted) return;
+      setState(() {
+        if (_restEndsAt != null && _restCountdown == null) _restEndsAt = null;
+      });
     });
   }
 
   @override
   void dispose() {
-    _sessionTimer.cancel();
-    _restTimer?.cancel();
+    _ticker.cancel();
     WakelockPlus.disable();
     super.dispose();
   }
 
   void _startRestTimer(int seconds) {
     if (seconds == 0) return;
-    _restTimer?.cancel();
     setState(() {
-      _restCountdown = seconds;
+      _restEndsAt = DateTime.now().add(Duration(seconds: seconds));
       _totalRest = seconds;
-    });
-    _restTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
-      if (!mounted) return;
-      if (_restCountdown! <= 1) {
-        timer.cancel();
-        setState(() => _restCountdown = null);
-      } else {
-        setState(() => _restCountdown = _restCountdown! - 1);
-      }
     });
   }
 
   void _skipRest() {
-    _restTimer?.cancel();
-    setState(() => _restCountdown = null);
+    setState(() => _restEndsAt = null);
   }
 
   Future<void> _finishSession() async {
@@ -102,7 +109,6 @@ class _ActiveSessionScreenState extends ConsumerState<ActiveSessionScreen> {
         builder: (_) => SessionSummaryScreen(
           sessionId: widget.sessionId,
           templateName: widget.templateName,
-          elapsedSeconds: _elapsedSeconds,
         ),
       ),
     );
