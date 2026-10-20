@@ -8,6 +8,9 @@ final workoutRepositoryProvider = Provider<WorkoutRepository>((ref) {
   return WorkoutRepository(ref.watch(databaseProvider));
 });
 
+/// Grupo selecionado nos chips da tela inicial; `null` = Todos.
+final selectedTemplateGroupProvider = StateProvider<String?>((_) => null);
+
 final importServiceProvider = Provider<ImportService>((ref) {
   return ImportService(ref.watch(databaseProvider));
 });

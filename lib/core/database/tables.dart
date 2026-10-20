@@ -18,6 +18,8 @@ class WorkoutTemplates extends Table {
   BoolColumn get isArchived => boolean().withDefault(const Constant(false))();
   DateTimeColumn get createdAt => dateTime().withDefault(currentDateAndTime)();
   IntColumn get position => integer().withDefault(const Constant(0))();
+  // Grupo do treino na tela inicial (ex: GYM, HOME); nulo = sem grupo (v5).
+  TextColumn get groupName => text().nullable()();
 }
 
 class TemplateExercises extends Table {

@@ -5,6 +5,7 @@ import 'package:drift/drift.dart';
 import 'package:file_picker/file_picker.dart';
 
 import '../database/app_database.dart';
+import '../database/repositories/workout_repository.dart';
 import '../database/tables.dart';
 
 class ImportResult {
@@ -56,11 +57,13 @@ class ImportService {
 
     // ── Valida tudo antes de gravar qualquer coisa ───────────────────────────
     final String templateName;
+    final String? group;
     final List<({String name, String muscleGroup, SetType setType, int restSeconds})>
         exercises;
     try {
       final templateJson = json['template'] as Map<String, dynamic>;
       templateName = templateJson['name'] as String;
+      group = templateJson['group'] as String?;
       exercises = (templateJson['exercises'] as List<dynamic>).map((e) {
         final exJson = e as Map<String, dynamic>;
         final setTypeStr = exJson['setType'] as String;
@@ -79,11 +82,12 @@ class ImportService {
     }
 
     // Tudo-ou-nada: se algo falhar no meio, nada fica gravado.
-    return _db.transaction(() => _import(templateName, exercises));
+    return _db.transaction(() => _import(templateName, group, exercises));
   }
 
   Future<ImportResult> _import(
     String templateName,
+    String? group,
     List<({String name, String muscleGroup, SetType setType, int restSeconds})>
         exercisesJson,
   ) async {
@@ -94,9 +98,12 @@ class ImportService {
     final resolvedName = await _resolveTemplateName(templateName);
 
     // ── Create template ──────────────────────────────────────────────────────
-    final templateId = await _db
-        .into(_db.workoutTemplates)
-        .insert(WorkoutTemplatesCompanion.insert(name: resolvedName));
+    final templateId = await _db.into(_db.workoutTemplates).insert(
+          WorkoutTemplatesCompanion.insert(
+            name: resolvedName,
+            groupName: Value(WorkoutRepository.normalizeGroup(group)),
+          ),
+        );
 
     // ── For each exercise: reuse existing by name or create ──────────────────
     for (var i = 0; i < exercisesJson.length; i++) {

@@ -49,6 +49,8 @@ class ExportService {
       'version': 1,
       'template': {
         'name': template.name,
+        // Opcional: versões antigas do app ignoram o campo.
+        if (template.groupName != null) 'group': template.groupName,
         'exercises': exercises,
       },
     });

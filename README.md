@@ -9,6 +9,7 @@ Aplicativo Android de gerenciamento de treinos desenvolvido em Flutter. Permite 
 ### Treinos
 - Criar, renomear e arquivar templates de treino
 - Visualizar e restaurar treinos arquivados
+- **Grupos** (ex: GYM, HOME, CALISTENIA): cada treino pode ter um grupo, definido no menu do card; chips no topo da tela inicial filtram a lista, e um treino criado com um filtro ativo já entra no grupo
 - Reordenar treinos na tela inicial e exercícios dentro de um template via drag-and-drop
 - Adicionar exercícios ao template a partir da biblioteca global (ou criar um novo direto no seletor)
 - **Descanso por treino**: tocar num exercício do template define um descanso só para aquele treino, sem mudar o padrão do exercício
@@ -130,7 +131,7 @@ Exercises
   restSeconds, isArchived, createdAt
 
 WorkoutTemplates
-  id, name, isArchived, createdAt, position
+  id, name, isArchived, createdAt, position, groupName (v5)
 
 TemplateExercises
   id, templateId → WorkoutTemplates, exerciseId → Exercises, position,

@@ -188,6 +188,21 @@ void main() {
 
       expect(result.templateName, 'Treino Teste');
     });
+
+    test('importa o grupo quando o arquivo traz um', () async {
+      const jsonComGrupo = '''
+      {"version": 1, "template": {"name": "Treino Casa", "group": "HOME",
+        "exercises": []}}
+      ''';
+      await service.parseAndImport(jsonComGrupo);
+      await service.parseAndImport(_jsonDoisNovos); // sem "group"
+
+      final templates = await db.select(db.workoutTemplates).get();
+      expect(
+        {for (final t in templates) t.name: t.groupName},
+        {'Treino Casa': 'HOME', 'Treino Teste': null},
+      );
+    });
   });
 
   // ── Resolução de conflito de nome ──────────────────────────────────────────

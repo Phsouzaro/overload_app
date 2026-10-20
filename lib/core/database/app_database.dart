@@ -23,7 +23,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.forTesting(super.e);
 
   @override
-  int get schemaVersion => 4;
+  int get schemaVersion => 5;
 
   @override
   MigrationStrategy get migration {
@@ -52,6 +52,9 @@ class AppDatabase extends _$AppDatabase {
         }
         if (from < 4) {
           await m.addColumn(sessionExercises, sessionExercises.isExtra);
+        }
+        if (from < 5) {
+          await m.addColumn(workoutTemplates, workoutTemplates.groupName);
         }
       },
       beforeOpen: (_) async {

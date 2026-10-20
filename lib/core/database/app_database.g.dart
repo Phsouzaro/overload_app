@@ -536,6 +536,17 @@ class $WorkoutTemplatesTable extends WorkoutTemplates
     requiredDuringInsert: false,
     defaultValue: const Constant(0),
   );
+  static const VerificationMeta _groupNameMeta = const VerificationMeta(
+    'groupName',
+  );
+  @override
+  late final GeneratedColumn<String> groupName = GeneratedColumn<String>(
+    'group_name',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
   @override
   List<GeneratedColumn> get $columns => [
     id,
@@ -543,6 +554,7 @@ class $WorkoutTemplatesTable extends WorkoutTemplates
     isArchived,
     createdAt,
     position,
+    groupName,
   ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -585,6 +597,12 @@ class $WorkoutTemplatesTable extends WorkoutTemplates
         position.isAcceptableOrUnknown(data['position']!, _positionMeta),
       );
     }
+    if (data.containsKey('group_name')) {
+      context.handle(
+        _groupNameMeta,
+        groupName.isAcceptableOrUnknown(data['group_name']!, _groupNameMeta),
+      );
+    }
     return context;
   }
 
@@ -614,6 +632,10 @@ class $WorkoutTemplatesTable extends WorkoutTemplates
         DriftSqlType.int,
         data['${effectivePrefix}position'],
       )!,
+      groupName: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}group_name'],
+      ),
     );
   }
 
@@ -629,12 +651,14 @@ class WorkoutTemplate extends DataClass implements Insertable<WorkoutTemplate> {
   final bool isArchived;
   final DateTime createdAt;
   final int position;
+  final String? groupName;
   const WorkoutTemplate({
     required this.id,
     required this.name,
     required this.isArchived,
     required this.createdAt,
     required this.position,
+    this.groupName,
   });
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
@@ -644,6 +668,9 @@ class WorkoutTemplate extends DataClass implements Insertable<WorkoutTemplate> {
     map['is_archived'] = Variable<bool>(isArchived);
     map['created_at'] = Variable<DateTime>(createdAt);
     map['position'] = Variable<int>(position);
+    if (!nullToAbsent || groupName != null) {
+      map['group_name'] = Variable<String>(groupName);
+    }
     return map;
   }
 
@@ -654,6 +681,9 @@ class WorkoutTemplate extends DataClass implements Insertable<WorkoutTemplate> {
       isArchived: Value(isArchived),
       createdAt: Value(createdAt),
       position: Value(position),
+      groupName: groupName == null && nullToAbsent
+          ? const Value.absent()
+          : Value(groupName),
     );
   }
 
@@ -668,6 +698,7 @@ class WorkoutTemplate extends DataClass implements Insertable<WorkoutTemplate> {
       isArchived: serializer.fromJson<bool>(json['isArchived']),
       createdAt: serializer.fromJson<DateTime>(json['createdAt']),
       position: serializer.fromJson<int>(json['position']),
+      groupName: serializer.fromJson<String?>(json['groupName']),
     );
   }
   @override
@@ -679,6 +710,7 @@ class WorkoutTemplate extends DataClass implements Insertable<WorkoutTemplate> {
       'isArchived': serializer.toJson<bool>(isArchived),
       'createdAt': serializer.toJson<DateTime>(createdAt),
       'position': serializer.toJson<int>(position),
+      'groupName': serializer.toJson<String?>(groupName),
     };
   }
 
@@ -688,12 +720,14 @@ class WorkoutTemplate extends DataClass implements Insertable<WorkoutTemplate> {
     bool? isArchived,
     DateTime? createdAt,
     int? position,
+    Value<String?> groupName = const Value.absent(),
   }) => WorkoutTemplate(
     id: id ?? this.id,
     name: name ?? this.name,
     isArchived: isArchived ?? this.isArchived,
     createdAt: createdAt ?? this.createdAt,
     position: position ?? this.position,
+    groupName: groupName.present ? groupName.value : this.groupName,
   );
   WorkoutTemplate copyWithCompanion(WorkoutTemplatesCompanion data) {
     return WorkoutTemplate(
@@ -704,6 +738,7 @@ class WorkoutTemplate extends DataClass implements Insertable<WorkoutTemplate> {
           : this.isArchived,
       createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
       position: data.position.present ? data.position.value : this.position,
+      groupName: data.groupName.present ? data.groupName.value : this.groupName,
     );
   }
 
@@ -714,13 +749,15 @@ class WorkoutTemplate extends DataClass implements Insertable<WorkoutTemplate> {
           ..write('name: $name, ')
           ..write('isArchived: $isArchived, ')
           ..write('createdAt: $createdAt, ')
-          ..write('position: $position')
+          ..write('position: $position, ')
+          ..write('groupName: $groupName')
           ..write(')'))
         .toString();
   }
 
   @override
-  int get hashCode => Object.hash(id, name, isArchived, createdAt, position);
+  int get hashCode =>
+      Object.hash(id, name, isArchived, createdAt, position, groupName);
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
@@ -729,7 +766,8 @@ class WorkoutTemplate extends DataClass implements Insertable<WorkoutTemplate> {
           other.name == this.name &&
           other.isArchived == this.isArchived &&
           other.createdAt == this.createdAt &&
-          other.position == this.position);
+          other.position == this.position &&
+          other.groupName == this.groupName);
 }
 
 class WorkoutTemplatesCompanion extends UpdateCompanion<WorkoutTemplate> {
@@ -738,12 +776,14 @@ class WorkoutTemplatesCompanion extends UpdateCompanion<WorkoutTemplate> {
   final Value<bool> isArchived;
   final Value<DateTime> createdAt;
   final Value<int> position;
+  final Value<String?> groupName;
   const WorkoutTemplatesCompanion({
     this.id = const Value.absent(),
     this.name = const Value.absent(),
     this.isArchived = const Value.absent(),
     this.createdAt = const Value.absent(),
     this.position = const Value.absent(),
+    this.groupName = const Value.absent(),
   });
   WorkoutTemplatesCompanion.insert({
     this.id = const Value.absent(),
@@ -751,6 +791,7 @@ class WorkoutTemplatesCompanion extends UpdateCompanion<WorkoutTemplate> {
     this.isArchived = const Value.absent(),
     this.createdAt = const Value.absent(),
     this.position = const Value.absent(),
+    this.groupName = const Value.absent(),
   }) : name = Value(name);
   static Insertable<WorkoutTemplate> custom({
     Expression<int>? id,
@@ -758,6 +799,7 @@ class WorkoutTemplatesCompanion extends UpdateCompanion<WorkoutTemplate> {
     Expression<bool>? isArchived,
     Expression<DateTime>? createdAt,
     Expression<int>? position,
+    Expression<String>? groupName,
   }) {
     return RawValuesInsertable({
       if (id != null) 'id': id,
@@ -765,6 +807,7 @@ class WorkoutTemplatesCompanion extends UpdateCompanion<WorkoutTemplate> {
       if (isArchived != null) 'is_archived': isArchived,
       if (createdAt != null) 'created_at': createdAt,
       if (position != null) 'position': position,
+      if (groupName != null) 'group_name': groupName,
     });
   }
 
@@ -774,6 +817,7 @@ class WorkoutTemplatesCompanion extends UpdateCompanion<WorkoutTemplate> {
     Value<bool>? isArchived,
     Value<DateTime>? createdAt,
     Value<int>? position,
+    Value<String?>? groupName,
   }) {
     return WorkoutTemplatesCompanion(
       id: id ?? this.id,
@@ -781,6 +825,7 @@ class WorkoutTemplatesCompanion extends UpdateCompanion<WorkoutTemplate> {
       isArchived: isArchived ?? this.isArchived,
       createdAt: createdAt ?? this.createdAt,
       position: position ?? this.position,
+      groupName: groupName ?? this.groupName,
     );
   }
 
@@ -802,6 +847,9 @@ class WorkoutTemplatesCompanion extends UpdateCompanion<WorkoutTemplate> {
     if (position.present) {
       map['position'] = Variable<int>(position.value);
     }
+    if (groupName.present) {
+      map['group_name'] = Variable<String>(groupName.value);
+    }
     return map;
   }
 
@@ -812,7 +860,8 @@ class WorkoutTemplatesCompanion extends UpdateCompanion<WorkoutTemplate> {
           ..write('name: $name, ')
           ..write('isArchived: $isArchived, ')
           ..write('createdAt: $createdAt, ')
-          ..write('position: $position')
+          ..write('position: $position, ')
+          ..write('groupName: $groupName')
           ..write(')'))
         .toString();
   }
@@ -3042,6 +3091,7 @@ typedef $$WorkoutTemplatesTableCreateCompanionBuilder =
       Value<bool> isArchived,
       Value<DateTime> createdAt,
       Value<int> position,
+      Value<String?> groupName,
     });
 typedef $$WorkoutTemplatesTableUpdateCompanionBuilder =
     WorkoutTemplatesCompanion Function({
@@ -3050,6 +3100,7 @@ typedef $$WorkoutTemplatesTableUpdateCompanionBuilder =
       Value<bool> isArchived,
       Value<DateTime> createdAt,
       Value<int> position,
+      Value<String?> groupName,
     });
 
 class $$WorkoutTemplatesTableFilterComposer
@@ -3083,6 +3134,11 @@ class $$WorkoutTemplatesTableFilterComposer
 
   ColumnFilters<int> get position => $composableBuilder(
     column: $table.position,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get groupName => $composableBuilder(
+    column: $table.groupName,
     builder: (column) => ColumnFilters(column),
   );
 }
@@ -3120,6 +3176,11 @@ class $$WorkoutTemplatesTableOrderingComposer
     column: $table.position,
     builder: (column) => ColumnOrderings(column),
   );
+
+  ColumnOrderings<String> get groupName => $composableBuilder(
+    column: $table.groupName,
+    builder: (column) => ColumnOrderings(column),
+  );
 }
 
 class $$WorkoutTemplatesTableAnnotationComposer
@@ -3147,6 +3208,9 @@ class $$WorkoutTemplatesTableAnnotationComposer
 
   GeneratedColumn<int> get position =>
       $composableBuilder(column: $table.position, builder: (column) => column);
+
+  GeneratedColumn<String> get groupName =>
+      $composableBuilder(column: $table.groupName, builder: (column) => column);
 }
 
 class $$WorkoutTemplatesTableTableManager
@@ -3191,12 +3255,14 @@ class $$WorkoutTemplatesTableTableManager
                 Value<bool> isArchived = const Value.absent(),
                 Value<DateTime> createdAt = const Value.absent(),
                 Value<int> position = const Value.absent(),
+                Value<String?> groupName = const Value.absent(),
               }) => WorkoutTemplatesCompanion(
                 id: id,
                 name: name,
                 isArchived: isArchived,
                 createdAt: createdAt,
                 position: position,
+                groupName: groupName,
               ),
           createCompanionCallback:
               ({
@@ -3205,12 +3271,14 @@ class $$WorkoutTemplatesTableTableManager
                 Value<bool> isArchived = const Value.absent(),
                 Value<DateTime> createdAt = const Value.absent(),
                 Value<int> position = const Value.absent(),
+                Value<String?> groupName = const Value.absent(),
               }) => WorkoutTemplatesCompanion.insert(
                 id: id,
                 name: name,
                 isArchived: isArchived,
                 createdAt: createdAt,
                 position: position,
+                groupName: groupName,
               ),
           withReferenceMapper: (p0) => p0
               .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
