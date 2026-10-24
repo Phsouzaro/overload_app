@@ -1,6 +1,7 @@
 import 'package:drift/drift.dart';
 import 'package:drift_flutter/drift_flutter.dart';
 import 'package:flutter/foundation.dart' show visibleForTesting;
+import '../progression/progression_enums.dart';
 import 'tables.dart';
 
 part 'app_database.g.dart';
@@ -14,6 +15,8 @@ part 'seed_data.dart';
   SessionExercises,
   SessionSets,
   BodyWeightEntries,
+  ProgressionConfigs,
+  ProgressionRecommendations,
 ])
 class AppDatabase extends _$AppDatabase {
   AppDatabase() : super(_openConnection());
@@ -23,7 +26,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.forTesting(super.e);
 
   @override
-  int get schemaVersion => 5;
+  int get schemaVersion => 6;
 
   @override
   MigrationStrategy get migration {
@@ -55,6 +58,29 @@ class AppDatabase extends _$AppDatabase {
         }
         if (from < 5) {
           await m.addColumn(workoutTemplates, workoutTemplates.groupName);
+        }
+        if (from < 6) {
+          // Progressão inteligente: só acréscimos, nada existente muda.
+          await m.createTable(progressionConfigs);
+          await m.createTable(progressionRecommendations);
+          for (final column in <GeneratedColumn>[
+            sessionSets.rir,
+            sessionSets.rpe,
+            sessionSets.executionQuality,
+            sessionSets.setRole,
+            sessionSets.targetWeightKg,
+            sessionSets.targetRepsMin,
+            sessionSets.targetRepsMax,
+          ]) {
+            await m.addColumn(sessionSets, column);
+          }
+          for (final column in <GeneratedColumn>[
+            sessionExercises.progressionConfigId,
+            sessionExercises.recommendationId,
+            sessionExercises.excludeFromProgression,
+          ]) {
+            await m.addColumn(sessionExercises, column);
+          }
         }
       },
       beforeOpen: (_) async {

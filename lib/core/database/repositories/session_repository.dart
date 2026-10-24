@@ -3,6 +3,7 @@ import 'dart:math';
 import 'package:drift/drift.dart';
 import '../app_database.dart';
 import '../tables.dart';
+import 'progression_repository.dart';
 
 class SessionExerciseWithExercise {
   final SessionExercise sessionExercise;
@@ -84,29 +85,14 @@ class SessionRepository {
       for (var i = 0; i < rows.length; i++) {
         final te = rows[i].readTable(_db.templateExercises);
         final exercise = rows[i].readTable(_db.exercises);
-
-        final seId = await _db.into(_db.sessionExercises).insert(
-              SessionExercisesCompanion.insert(
-                sessionId: sessionId,
-                exerciseId: te.exerciseId,
-                position: i,
-                restSeconds:
-                    Value(te.restSecondsOverride ?? exercise.restSeconds),
-              ),
-            );
-
-        // Pré-cria séries vazias com base na sessão anterior
-        final prevSets = await getPreviousSets(templateId, te.exerciseId);
-        for (var j = 0; j < prevSets.length; j++) {
-          await _db.into(_db.sessionSets).insert(
-                SessionSetsCompanion.insert(
-                  sessionExerciseId: seId,
-                  setType: exercise.setType,
-                  position: j,
-                ),
-              );
-        }
-        // Se não há histórico, o usuário adiciona manualmente (comportamento original)
+        // Se não há histórico, o usuário adiciona as séries manualmente.
+        await _addSessionExercise(
+          sessionId: sessionId,
+          exercise: exercise,
+          position: i,
+          restSeconds: te.restSecondsOverride ?? exercise.restSeconds,
+          minSets: 0,
+        );
       }
 
       return sessionId;
@@ -124,28 +110,78 @@ class SessionRepository {
           ? 0
           : existing.map((se) => se.position).reduce(max) + 1;
 
-      final seId = await _db.into(_db.sessionExercises).insert(
-            SessionExercisesCompanion.insert(
-              sessionId: sessionId,
-              exerciseId: exercise.id,
-              position: position,
-              restSeconds: Value(exercise.restSeconds),
-              isExtra: const Value(true),
-            ),
-          );
+      await _addSessionExercise(
+        sessionId: sessionId,
+        exercise: exercise,
+        position: position,
+        restSeconds: exercise.restSeconds,
+        minSets: 1,
+        isExtra: true,
+      );
+    });
+  }
 
-      final prevSets = await getPreviousSets(0, exercise.id);
-      final count = prevSets.isEmpty ? 1 : prevSets.length;
-      for (var j = 0; j < count; j++) {
+  /// Cria o exercício na sessão e pré-cria suas séries.
+  ///
+  /// Guarda a config de progressão vigente. Se houver recomendação aceita
+  /// (ou ajustada) ainda não usada, as séries nascem com as metas dela;
+  /// senão, uma série vazia por série de trabalho da última vez (mínimo
+  /// [minSets]).
+  Future<void> _addSessionExercise({
+    required int sessionId,
+    required Exercise exercise,
+    required int position,
+    required int restSeconds,
+    required int minSets,
+    bool isExtra = false,
+  }) async {
+    final progression = ProgressionRepository(_db);
+    final config = await progression.activeConfig(exercise.id);
+    final planned = config == null
+        ? null
+        : await progression.targetsToApply(exercise.id, config.id);
+
+    final seId = await _db.into(_db.sessionExercises).insert(
+          SessionExercisesCompanion.insert(
+            sessionId: sessionId,
+            exerciseId: exercise.id,
+            position: position,
+            restSeconds: Value(restSeconds),
+            isExtra: Value(isExtra),
+            progressionConfigId: Value(config?.id),
+            recommendationId: Value(planned?.recommendationId),
+          ),
+        );
+
+    if (planned != null) {
+      for (var j = 0; j < planned.targets.length; j++) {
+        final t = planned.targets[j];
         await _db.into(_db.sessionSets).insert(
               SessionSetsCompanion.insert(
                 sessionExerciseId: seId,
                 setType: exercise.setType,
                 position: j,
+                setRole: Value(t.role),
+                targetWeightKg: Value(t.weightKg),
+                targetRepsMin: Value(t.repsMin),
+                targetRepsMax: Value(t.repsMax),
               ),
             );
       }
-    });
+      return;
+    }
+
+    final prevSets = await getPreviousSets(0, exercise.id);
+    final count = max(prevSets.length, minSets);
+    for (var j = 0; j < count; j++) {
+      await _db.into(_db.sessionSets).insert(
+            SessionSetsCompanion.insert(
+              sessionExerciseId: seId,
+              setType: exercise.setType,
+              position: j,
+            ),
+          );
+    }
   }
 
   /// Tira um exercício da sessão, junto com as séries registradas nele.

@@ -1,6 +1,6 @@
 # Progressão Inteligente — Etapa 0: Auditoria e Planejamento
 
-> Status: **decisões registradas (2026-10-24)**; aguardando autorização para a Etapa 1.
+> Status: **Etapa 1 concluída (infraestrutura)**; aguardando validação para a Etapa 2.
 > Base auditada: `master` em `0a9d098` (v1.2.0+3, schema drift v5).
 
 ---
@@ -248,6 +248,38 @@ Cada etapa termina com: `flutter test` + `flutter analyze` executados de verdade
 8. Em cada etapa, `flutter test` e `flutter analyze` passam sem avisos.
 
 ---
+
+## 10. Etapa 1 — Infraestrutura (implementada)
+
+### Arquivos
+
+| Arquivo | Papel |
+|---|---|
+| `lib/core/progression/progression_enums.dart` | `StrategyId`, `RecommendationStatus`, `RecommendationDecision`, `ExecutionQuality`, `SetRole` (gravados pelo nome: renomear exige migration). |
+| `lib/core/progression/progression_models.dart` | `SetRecord`, `SessionRecord`, `ExerciseContext`, `SetTarget`, `Criterion`, `ConfigIssue`, `ProgressionResult`. |
+| `lib/core/progression/progression_strategy.dart` | Contrato `ProgressionStrategy<C>`, `ProgressionConfig`, `ProgressionInput`. |
+| `lib/core/progression/progression_registry.dart` | `ProgressionRegistry.standard`, **vazio nesta etapa**. |
+| `lib/core/progression/progression_rules.dart` | Regras compartilhadas: séries de trabalho, qualidade que comprova meta, arredondamento ao incremento, pausa longa (> 21 dias). |
+| `lib/core/database/repositories/progression_repository.dart` | Configs versionadas, recomendações, decisões, metas a aplicar e histórico no formato do motor. |
+| `lib/core/services/progression_service.dart` | Avalia a sessão finalizada e grava recomendações **pendentes**. |
+| `lib/features/progression/providers/progression_providers.dart` | Providers do repositório e do serviço. |
+| `tables.dart` / `app_database.dart` | Schema v6 (migration aditiva). |
+| `session_repository.dart` | Início de sessão grava a config vigente e aplica metas aceitas (uma vez). |
+| `active_session_screen.dart` | Encerrar a sessão chama o serviço. |
+
+### Como adicionar uma estratégia
+
+1. Criar a config (`extends ProgressionConfig`) com `toJson` e os parâmetros próprios.
+2. Implementar `ProgressionStrategy<SuaConfig>`: `configFromJson`, `validate` e `evaluate` (pura, sem I/O, usando `ProgressionRules` para o que for comum).
+3. Registrar em `ProgressionRegistry.standard`.
+4. Testar com históricos simulados (`SessionRecord`) sem banco, e um teste de integração pelo `ProgressionService`.
+
+### Comportamento garantido nesta etapa
+
+- Nenhuma estratégia registrada: encerrar uma sessão não grava nada e o app se comporta como antes.
+- Recomendação nasce `pending`; só `accepted`/`adjusted` viram metas, e uma única vez (sessão descartada libera de novo).
+- Metas vão para `target*` das séries; os campos registrados (`weightKg`, `reps`) continuam vazios até o usuário confirmar.
+- Erro dentro de uma estratégia é registrado no log e não impede o encerramento.
 
 ## 9. Decisões do proprietário (2026-10-24)
 

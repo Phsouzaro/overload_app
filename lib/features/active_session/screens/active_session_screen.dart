@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:wakelock_plus/wakelock_plus.dart';
 import '../../../core/database/app_database.dart';
 import '../../../core/services/rest_notification_service.dart';
+import '../../progression/providers/progression_providers.dart';
 import '../../workout_templates/screens/exercise_picker_screen.dart';
 import '../providers/session_providers.dart';
 import '../widgets/exercise_session_card.dart';
@@ -125,6 +126,15 @@ class _ActiveSessionScreenState extends ConsumerState<ActiveSessionScreen> {
     _restNotifications.cancel();
   }
 
+  /// Encerra a sessão e gera as recomendações de progressão (pendentes; nada
+  /// muda sem o usuário aceitar). Falhas na avaliação não impedem encerrar.
+  Future<void> _finishAndEvaluate() async {
+    await ref.read(sessionRepositoryProvider).finishSession(widget.sessionId);
+    await ref
+        .read(progressionServiceProvider)
+        .evaluateFinishedSession(widget.sessionId);
+  }
+
   Future<void> _finishSession() async {
     final confirm = await showDialog<bool>(
       context: context,
@@ -144,9 +154,7 @@ class _ActiveSessionScreenState extends ConsumerState<ActiveSessionScreen> {
     );
     if (confirm != true || !mounted) return;
 
-    await ref
-        .read(sessionRepositoryProvider)
-        .finishSession(widget.sessionId);
+    await _finishAndEvaluate();
 
     if (!mounted) return;
     Navigator.pushReplacement(
@@ -186,9 +194,7 @@ class _ActiveSessionScreenState extends ConsumerState<ActiveSessionScreen> {
     );
 
     if (result == 'finish' && mounted) {
-      await ref
-          .read(sessionRepositoryProvider)
-          .finishSession(widget.sessionId);
+      await _finishAndEvaluate();
       return true;
     }
     if (result == 'exit' && mounted) {
