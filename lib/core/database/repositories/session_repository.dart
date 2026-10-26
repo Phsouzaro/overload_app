@@ -271,16 +271,19 @@ class SessionRepository {
     );
   }
 
-  /// Grava RIR e qualidade da execução de uma série. `null` limpa o valor
-  /// (volta a "não registrado"), permitindo corrigir o que foi informado.
+  /// Grava RIR, RPE e qualidade da execução de uma série. `null` limpa o
+  /// valor (volta a "não registrado"), permitindo corrigir o que foi
+  /// informado. RIR e RPE são independentes: um nunca é derivado do outro.
   Future<void> updateSetDetails(
     int setId, {
     required int? rir,
+    required double? rpe,
     required ExecutionQuality? quality,
   }) {
     return (_db.update(_db.sessionSets)..where((s) => s.id.equals(setId)))
         .write(SessionSetsCompanion(
       rir: Value(rir),
+      rpe: Value(rpe),
       executionQuality: Value(quality),
     ));
   }

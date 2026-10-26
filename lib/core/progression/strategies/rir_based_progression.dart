@@ -4,15 +4,6 @@ import '../progression_rules.dart';
 import '../progression_strategy.dart';
 import '../session_checks.dart';
 
-/// Quais séries têm o RIR avaliado.
-enum RirCriterion {
-  /// Todas as séries de trabalho (padrão).
-  allSets,
-
-  /// Só a última série de trabalho, onde o cansaço acumulado aparece.
-  lastSet,
-}
-
 class RirBasedConfig extends ProgressionConfig {
   final int sets;
   final int repsMin;
@@ -24,7 +15,7 @@ class RirBasedConfig extends ProgressionConfig {
   /// Variação aceita em torno do RIR-alvo (0–2): a percepção de esforço muda
   /// de uma sessão para outra.
   final int rirTolerance;
-  final RirCriterion criterion;
+  final EffortCriterion criterion;
   final LoadRounding rounding;
   @override
   final bool requireMarkedValid;
@@ -35,7 +26,7 @@ class RirBasedConfig extends ProgressionConfig {
     this.repsMax = 12,
     this.targetRir = 2,
     this.rirTolerance = 1,
-    this.criterion = RirCriterion.allSets,
+    this.criterion = EffortCriterion.allSets,
     this.rounding = LoadRounding.nearest,
     this.requireMarkedValid = false,
   });
@@ -69,7 +60,7 @@ class RirBasedConfig extends ProgressionConfig {
     repsMax: json['repsMax'] as int,
     targetRir: json['targetRir'] as int,
     rirTolerance: json['rirTolerance'] as int? ?? 1,
-    criterion: RirCriterion.values.byName(
+    criterion: EffortCriterion.values.byName(
       json['criterion'] as String? ?? 'allSets',
     ),
     rounding: LoadRounding.values.byName(
@@ -84,7 +75,7 @@ class RirBasedConfig extends ProgressionConfig {
     int? repsMax,
     int? targetRir,
     int? rirTolerance,
-    RirCriterion? criterion,
+    EffortCriterion? criterion,
     LoadRounding? rounding,
     bool? requireMarkedValid,
   }) {
@@ -217,8 +208,8 @@ class RirBasedStrategy extends ProgressionStrategy<RirBasedConfig> {
 
     // RIR informado (falha muscular = 0). Nunca estimado a partir da carga.
     final rirSets = switch (c.criterion) {
-      RirCriterion.allSets => considered,
-      RirCriterion.lastSet => [considered.last],
+      EffortCriterion.allSets => considered,
+      EffortCriterion.lastSet => [considered.last],
     };
     final rirs = [for (final s in rirSets) s.toFailure ? 0 : s.rir];
     final rirMissing = rirs.contains(null);
@@ -232,7 +223,7 @@ class RirBasedStrategy extends ProgressionStrategy<RirBasedConfig> {
       effortOk,
       Criterion(
         'rirWithinTarget',
-        'RIR ${c.criterion == RirCriterion.lastSet ? 'da última série ' : ''}'
+        'RIR ${c.criterion == EffortCriterion.lastSet ? 'da última série ' : ''}'
             '≥ $floor (alvo ${c.targetRir}'
             '${c.rirTolerance > 0 ? ' ± ${c.rirTolerance}' : ''})'
             '${lowestRir != null ? ': registrado $lowestRir' : ''}',

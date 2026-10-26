@@ -66,6 +66,23 @@ void main() {
     await unmount(tester);
   });
 
+  testWidgets('registra RPE na correção e mostra na série', (tester) async {
+    await pumpWithDb(tester, db, screen());
+
+    await tester.tap(find.textContaining('30.0 kg × 10').first);
+    await tester.pumpAndSettle();
+    final rpeChip = find.byKey(const ValueKey('rpe-8.5'));
+    await tester.ensureVisible(rpeChip);
+    await tester.tap(rpeChip);
+    await tester.tap(find.text('Salvar'));
+    await tester.pumpAndSettle();
+
+    final first = (await sets()).first;
+    expect((first.rpe, first.rir), (8.5, null));
+    expect(find.text('RPE 8,5'), findsOneWidget);
+    await unmount(tester);
+  });
+
   testWidgets('correção não reavalia sozinha; "Reavaliar" gera sugestão', (
     tester,
   ) async {

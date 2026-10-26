@@ -101,6 +101,14 @@ class SettingsScreen extends ConsumerWidget {
             value: settings.alwaysRecordRir,
             onChanged: notifier.setAlwaysRecordRir,
           ),
+          SwitchListTile(
+            contentPadding: EdgeInsets.zero,
+            title: const Text('Sempre registrar RPE'),
+            subtitle: const Text(
+                'Mostra o RPE (esforço percebido, 6–10) em todas as séries'),
+            value: settings.alwaysRecordRpe,
+            onChanged: notifier.setAlwaysRecordRpe,
+          ),
 
           const SizedBox(height: 32),
 

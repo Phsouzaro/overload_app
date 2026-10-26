@@ -277,11 +277,18 @@ class _ExerciseDetailCardState extends ConsumerState<_ExerciseDetailCard> {
       rir: set.rir,
       quality: set.executionQuality,
       askRir: true,
+      rpe: set.rpe,
+      askRpe: true,
     );
     if (details == null || !mounted) return;
     await ref
         .read(sessionRepositoryProvider)
-        .updateSetDetails(set.id, rir: details.rir, quality: details.quality);
+        .updateSetDetails(
+          set.id,
+          rir: details.rir,
+          rpe: details.rpe,
+          quality: details.quality,
+        );
     if (!mounted) return;
     setState(() {
       _sets = [
@@ -289,6 +296,7 @@ class _ExerciseDetailCardState extends ConsumerState<_ExerciseDetailCard> {
           i == index
               ? _sets[i].copyWith(
                   rir: Value(details.rir),
+                  rpe: Value(details.rpe),
                   executionQuality: Value(details.quality),
                 )
               : _sets[i],
@@ -380,6 +388,15 @@ class _ExerciseDetailCardState extends ConsumerState<_ExerciseDetailCard> {
                         const SizedBox(width: 6),
                         Text(
                           'RIR ${s.rir == 5 ? '5+' : s.rir}',
+                          style: Theme.of(
+                            context,
+                          ).textTheme.bodySmall?.copyWith(color: cs.primary),
+                        ),
+                      ],
+                      if (s.rpe != null) ...[
+                        const SizedBox(width: 6),
+                        Text(
+                          'RPE ${formatRpe(s.rpe!)}',
                           style: Theme.of(
                             context,
                           ).textTheme.bodySmall?.copyWith(color: cs.primary),

@@ -10,6 +10,7 @@ import '../../../core/utils/unit_converter.dart';
 import '../../../core/progression/strategies/double_progression.dart';
 import '../../../core/progression/strategies/linear_progression.dart';
 import '../../../core/progression/strategies/rir_based_progression.dart';
+import '../../../core/progression/strategies/rpe_based_progression.dart';
 import '../../progression/providers/progression_providers.dart';
 import '../../reports/providers/report_providers.dart';
 import '../../settings/providers/settings_provider.dart';
@@ -50,7 +51,9 @@ class ExerciseSessionCard extends ConsumerWidget {
         ? null
         : ref.watch(progressionSetupByIdProvider(configId)).valueOrNull;
     final askRir = (setup?.config.usesRir ?? false) || settings.alwaysRecordRir;
-    final showDetails = setup != null || settings.alwaysRecordRir;
+    final askRpe = (setup?.config.usesRpe ?? false) || settings.alwaysRecordRpe;
+    final showDetails =
+        setup != null || settings.alwaysRecordRir || settings.alwaysRecordRpe;
 
     return Card(
       margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
@@ -247,7 +250,8 @@ class ExerciseSessionCard extends ConsumerWidget {
                             hintReps: planned ? s.targetRepsMin : prev?.reps,
                             hintDuration: prev?.durationSeconds,
                             onDetails: showDetails
-                                ? () => _editDetails(context, ref, s, askRir)
+                                ? () => _editDetails(context, ref, s,
+                                    askRir: askRir, askRpe: askRpe)
                                 : null,
                             onConfirm: (weight, reps, duration,
                                 isWarmup, toFailure) async {
@@ -314,19 +318,23 @@ class ExerciseSessionCard extends ConsumerWidget {
   Future<void> _editDetails(
     BuildContext context,
     WidgetRef ref,
-    SessionSet set,
-    bool askRir,
-  ) async {
+    SessionSet set, {
+    required bool askRir,
+    required bool askRpe,
+  }) async {
     final details = await showSetDetailsSheet(
       context,
       rir: set.rir,
+      rpe: set.rpe,
       quality: set.executionQuality,
       askRir: askRir,
+      askRpe: askRpe,
     );
     if (details == null) return;
     await ref.read(sessionRepositoryProvider).updateSetDetails(
           set.id,
           rir: details.rir,
+          rpe: details.rpe,
           quality: details.quality,
         );
   }
@@ -441,6 +449,7 @@ class _ProgressionLine extends StatelessWidget {
     final range = switch (config) {
       final DoubleProgressionConfig c => (sets: c.sets, top: c.repsMax),
       final RirBasedConfig c => (sets: c.sets, top: c.repsMax),
+      final RpeBasedConfig c => (sets: c.sets, top: c.repsMax),
       _ => null,
     };
     if (range != null && sets.any((s) => s.reps != null)) {

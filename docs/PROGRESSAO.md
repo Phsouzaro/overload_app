@@ -1,6 +1,6 @@
 # Progressão Inteligente — Etapa 0: Auditoria e Planejamento
 
-> Status: **Etapa 4 concluída (Progressão por RIR)**; aguardando validação para a Etapa 5.
+> Status: **Etapa 5 concluída (Progressão por RPE)**; aguardando validação para a Etapa 6.
 > Base auditada: `master` em `0a9d098` (v1.2.0+3, schema drift v5).
 
 ---
@@ -397,6 +397,43 @@ A variação de percepção entre sessões é tratada pela tolerância; usa-se o
 
 - **Durante o treino:** botão de detalhes da série (já existia), agora sempre com RIR para esta estratégia.
 - **Depois do treino:** Histórico → sessão → tocar numa série corrige RIR e qualidade. Aparece a ação **Reavaliar**, que gera uma nova recomendação pendente com os dados corrigidos. Nada é reavaliado sozinho, e recomendações já decididas não são reescritas (a pendente anterior vira `superseded`).
+
+## 14. Etapa 5 — Progressão por RPE (implementada)
+
+### Captura de RPE
+
+- Escala de força **6–10 em passos de 0,5** (`rpeScale`), registrada na folha de detalhes da série (durante o treino e na correção pelo histórico).
+- Aparece quando a estratégia usa RPE (`ProgressionConfig.usesRpe`) ou com **Configurações → Sempre registrar RPE**.
+- `SessionRepository.updateSetDetails` grava RIR, RPE e qualidade de forma independente. **RPE e RIR nunca são convertidos um no outro**; uma série só com RIR conta como "RPE não registrado".
+- A folha de detalhes passou a ter Cancelar/Salvar fixos no rodapé (o conteúdo rola), para não esconder o botão em telas pequenas.
+- `EffortCriterion` (todas as séries / última série) passou a ser compartilhado por RIR e RPE. Os valores gravados no JSON não mudaram.
+
+### Parâmetros (`RpeBasedConfig`)
+
+| Parâmetro | Padrão | Observação |
+|---|---|---|
+| `sets`, `repsMin`, `repsMax` | 3, 8, 12 | Faixa de repetições. |
+| `targetRpe` | 8 | 6–10, passos de 0,5. |
+| `rpeTolerance` | 0,5 | 0, 0,5 ou 1. A carga só sobe com RPE ≤ alvo + tolerância. |
+| `criterion` | `allSets` | `lastSet`: avalia só a última série. |
+| `rounding`, `requireMarkedValid` | — | Iguais às demais. |
+
+### Decisão (sessão mais recente)
+
+Espelho da Progressão por RIR com a escala invertida (RPE alto = esforço alto), usando o **maior** RPE das séries avaliadas:
+
+1. Verificações compartilhadas → séries a menos (`incompleteSession`) → execução comprometida (`invalidExecution`).
+2. RPE ausente → `insufficientData` (`rpeMissing`), mesma carga como sugestão conservadora.
+3. RPE > alvo + tolerância → `maintain` (`effortAboveTarget`); nunca reduz sozinho.
+4. Abaixo do mínimo → `maintain` (`belowMinimum`).
+5. Topo da faixa com RPE dentro ou abaixo do planejado → `increaseWeight` (`topOfRangeWithinRpe`).
+6. Fora do topo com RPE < alvo − tolerância → `increaseReps` (`easierThanTarget`); senão `increaseReps` (`withinRange`).
+
+**Única regra explícita de equivalência:** falha muscular (⚡) vale **RPE 10**, por definição do topo da escala. Não é uma conversão de RIR.
+
+### Limitação conhecida
+
+- O RPE é tratado como percepção (não medida objetiva) pela tolerância e pela exigência de repetições; não há média entre sessões.
 
 ## 9. Decisões do proprietário (2026-10-24)
 

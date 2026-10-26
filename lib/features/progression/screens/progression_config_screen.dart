@@ -13,6 +13,9 @@ import '../../../core/progression/progression_strategy.dart';
 import '../../../core/progression/strategies/double_progression.dart';
 import '../../../core/progression/strategies/linear_progression.dart';
 import '../../../core/progression/strategies/rir_based_progression.dart';
+import '../../../core/progression/strategies/rpe_based_progression.dart';
+import '../../active_session/widgets/set_details_sheet.dart'
+    show formatRpe, rpeScale;
 import '../../../core/utils/unit_converter.dart';
 import '../../settings/providers/settings_provider.dart';
 import '../providers/progression_providers.dart';
@@ -41,6 +44,7 @@ class _ProgressionConfigScreenState
   DoubleProgressionConfig _double = const DoubleProgressionConfig();
   LinearProgressionConfig _linear = const LinearProgressionConfig();
   RirBasedConfig _rir = const RirBasedConfig();
+  RpeBasedConfig _rpe = const RpeBasedConfig();
   late final TextEditingController _increment;
   bool _newBaseline = false;
 
@@ -82,6 +86,8 @@ class _ProgressionConfigScreenState
           _linear = LinearProgressionConfig.fromJson(params);
         case StrategyId.rirBased:
           _rir = RirBasedConfig.fromJson(params);
+        case StrategyId.rpeBased:
+          _rpe = RpeBasedConfig.fromJson(params);
         default:
           break;
       }
@@ -105,6 +111,7 @@ class _ProgressionConfigScreenState
     StrategyId.doubleProgression => _double,
     StrategyId.linear => _linear,
     StrategyId.rirBased => _rir,
+    StrategyId.rpeBased => _rpe,
     _ => null,
   };
 
@@ -235,6 +242,11 @@ class _ProgressionConfigScreenState
                       config: _rir,
                       onChanged: (c) => setState(() => _rir = c),
                     ),
+                  if (_strategy == StrategyId.rpeBased)
+                    _RpeBasedForm(
+                      config: _rpe,
+                      onChanged: (c) => setState(() => _rpe = c),
+                    ),
                   _IncrementField(
                     controller: _increment,
                     unit: unit,
@@ -287,8 +299,136 @@ class _ProgressionConfigScreenState
       'Meta fixa de repetições; sobe a carga após sessões bem-sucedidas',
     StrategyId.rirBased =>
       'Usa o RIR que você informa e a faixa de repetições para subir a carga',
+    StrategyId.rpeBased =>
+      'Usa o esforço percebido (RPE 6–10) e a faixa de repetições',
     _ => '',
   };
+}
+
+class _RpeBasedForm extends StatelessWidget {
+  final RpeBasedConfig config;
+  final ValueChanged<RpeBasedConfig> onChanged;
+
+  const _RpeBasedForm({required this.config, required this.onChanged});
+
+  @override
+  Widget build(BuildContext context) {
+    final textTheme = Theme.of(context).textTheme;
+    final outline = Theme.of(context).colorScheme.outline;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _Stepper(
+          label: 'Séries de trabalho',
+          value: config.sets,
+          min: 1,
+          max: 10,
+          onChanged: (v) => onChanged(config.copyWith(sets: v)),
+        ),
+        const SizedBox(height: 8),
+        Text(
+          'Faixa de repetições: ${config.repsMin}–${config.repsMax}',
+          style: textTheme.bodyLarge,
+        ),
+        RangeSlider(
+          values: RangeValues(
+            config.repsMin.toDouble(),
+            config.repsMax.toDouble(),
+          ),
+          min: 1,
+          max: 30,
+          divisions: 29,
+          labels: RangeLabels('${config.repsMin}', '${config.repsMax}'),
+          onChanged: (r) => onChanged(
+            config.copyWith(repsMin: r.start.round(), repsMax: r.end.round()),
+          ),
+        ),
+        Row(
+          children: [
+            Expanded(child: Text('RPE-alvo', style: textTheme.bodyLarge)),
+            DropdownButton<double>(
+              value: config.targetRpe,
+              items: [
+                for (final v in rpeScale)
+                  DropdownMenuItem(
+                    value: v,
+                    child: Text('RPE ${formatRpe(v)}'),
+                  ),
+              ],
+              onChanged: (v) => onChanged(config.copyWith(targetRpe: v)),
+            ),
+          ],
+        ),
+        Row(
+          children: [
+            Expanded(
+              child: Text('Tolerância de RPE', style: textTheme.bodyLarge),
+            ),
+            SegmentedButton<double>(
+              segments: const [
+                ButtonSegment(value: 0, label: Text('±0')),
+                ButtonSegment(value: 0.5, label: Text('±0,5')),
+                ButtonSegment(value: 1, label: Text('±1')),
+              ],
+              selected: {config.rpeTolerance},
+              onSelectionChanged: (s) =>
+                  onChanged(config.copyWith(rpeTolerance: s.first)),
+            ),
+          ],
+        ),
+        const SizedBox(height: 4),
+        Text(
+          'A carga só sobe com RPE de no máximo '
+          '${formatRpe(config.targetRpe + config.rpeTolerance)} e todas as '
+          'séries no topo da faixa. RPE não é convertido em RIR.',
+          style: textTheme.bodySmall?.copyWith(color: outline),
+        ),
+        const SizedBox(height: 8),
+        Text('Avaliar o RPE de', style: textTheme.bodyLarge),
+        const SizedBox(height: 6),
+        SegmentedButton<EffortCriterion>(
+          segments: const [
+            ButtonSegment(
+              value: EffortCriterion.allSets,
+              label: Text('Todas as séries'),
+            ),
+            ButtonSegment(
+              value: EffortCriterion.lastSet,
+              label: Text('Última série'),
+            ),
+          ],
+          selected: {config.criterion},
+          onSelectionChanged: (s) =>
+              onChanged(config.copyWith(criterion: s.first)),
+        ),
+        const SizedBox(height: 8),
+        Text('Arredondar carga sugerida', style: textTheme.bodyLarge),
+        const SizedBox(height: 6),
+        SegmentedButton<LoadRounding>(
+          segments: const [
+            ButtonSegment(
+              value: LoadRounding.nearest,
+              label: Text('Mais próximo'),
+            ),
+            ButtonSegment(value: LoadRounding.down, label: Text('Para baixo')),
+            ButtonSegment(value: LoadRounding.up, label: Text('Para cima')),
+          ],
+          selected: {config.rounding},
+          onSelectionChanged: (s) =>
+              onChanged(config.copyWith(rounding: s.first)),
+        ),
+        SwitchListTile(
+          contentPadding: EdgeInsets.zero,
+          value: config.requireMarkedValid,
+          onChanged: (v) => onChanged(config.copyWith(requireMarkedValid: v)),
+          title: const Text('Exigir execução marcada como válida'),
+          subtitle: const Text(
+            'Desligado: séries sem qualidade marcada contam como válidas',
+          ),
+        ),
+      ],
+    );
+  }
 }
 
 class _RirBasedForm extends StatelessWidget {
@@ -353,14 +493,14 @@ class _RirBasedForm extends StatelessWidget {
         const SizedBox(height: 8),
         Text('Avaliar o RIR de', style: textTheme.bodyLarge),
         const SizedBox(height: 6),
-        SegmentedButton<RirCriterion>(
+        SegmentedButton<EffortCriterion>(
           segments: const [
             ButtonSegment(
-              value: RirCriterion.allSets,
+              value: EffortCriterion.allSets,
               label: Text('Todas as séries'),
             ),
             ButtonSegment(
-              value: RirCriterion.lastSet,
+              value: EffortCriterion.lastSet,
               label: Text('Última série'),
             ),
           ],
@@ -761,6 +901,17 @@ class _Issues extends StatelessWidget {
   }
 }
 
+class _Scenario {
+  final String label;
+
+  /// Sessões (mais recente primeiro), cada uma com as reps de cada série.
+  final List<List<int>> sessions;
+  final int? rir;
+  final double? rpe;
+
+  const _Scenario(this.label, this.sessions, {this.rir, this.rpe});
+}
+
 /// Exemplo calculado pela própria estratégia com sessões fictícias: mostra o
 /// comportamento exato da config, sem repetir regras na interface.
 class _Example extends StatelessWidget {
@@ -779,54 +930,56 @@ class _Example extends StatelessWidget {
   });
 
   /// Cenários: rótulo, sessões (mais recente primeiro) com as reps de cada
-  /// série, e o RIR registrado nelas (`null` = não registrado).
-  List<(String, List<List<int>>, int?)> _scenarios() {
+  /// série, e o RIR/RPE registrados nelas (`null` = não registrado).
+  List<_Scenario> _scenarios() {
     List<int> all(int sets, int reps) => [for (var i = 0; i < sets; i++) reps];
+    List<int> missOne(int sets, int reps) => [
+      for (var i = 0; i < sets; i++) i == sets - 1 ? reps - 1 : reps,
+    ];
     return switch (config) {
       final DoubleProgressionConfig c => [
-        ('Dentro da faixa', [all(c.sets, c.repsMin)], c.targetRir),
-        ('Topo da faixa', [all(c.sets, c.repsMax)], c.targetRir),
+        _Scenario('Dentro da faixa', [
+          all(c.sets, c.repsMin),
+        ], rir: c.targetRir),
+        _Scenario('Topo da faixa', [all(c.sets, c.repsMax)], rir: c.targetRir),
       ],
       final LinearProgressionConfig c => [
-        (
-          'Meta completa',
-          [
-            for (var i = 0; i < c.successesRequired; i++)
-              all(c.sets, c.targetReps),
-          ],
-          c.targetRir,
-        ),
-        (
-          'Faltou 1 rep',
-          [
-            [
-              for (var i = 0; i < c.sets; i++)
-                i == c.sets - 1 ? c.targetReps - 1 : c.targetReps,
-            ],
-          ],
-          c.targetRir,
-        ),
-        (
-          '${c.failureTolerance} falha(s) seguida(s)',
-          [
-            for (var i = 0; i < c.failureTolerance; i++)
-              [
-                for (var j = 0; j < c.sets; j++)
-                  j == c.sets - 1 ? c.targetReps - 1 : c.targetReps,
-              ],
-          ],
-          c.targetRir,
-        ),
+        _Scenario('Meta completa', [
+          for (var i = 0; i < c.successesRequired; i++)
+            all(c.sets, c.targetReps),
+        ], rir: c.targetRir),
+        _Scenario('Faltou 1 rep', [
+          missOne(c.sets, c.targetReps),
+        ], rir: c.targetRir),
+        _Scenario('${c.failureTolerance} falha(s) seguida(s)', [
+          for (var i = 0; i < c.failureTolerance; i++)
+            missOne(c.sets, c.targetReps),
+        ], rir: c.targetRir),
       ],
       final RirBasedConfig c => [
-        ('Topo com RIR ${c.targetRir}', [all(c.sets, c.repsMax)], c.targetRir),
+        _Scenario('Topo com RIR ${c.targetRir}', [
+          all(c.sets, c.repsMax),
+        ], rir: c.targetRir),
         if (c.targetRir - c.rirTolerance - 1 >= 0)
-          (
+          _Scenario(
             'Topo com RIR ${c.targetRir - c.rirTolerance - 1} (esforço alto)',
             [all(c.sets, c.repsMax)],
-            c.targetRir - c.rirTolerance - 1,
+            rir: c.targetRir - c.rirTolerance - 1,
           ),
-        ('Topo sem RIR registrado', [all(c.sets, c.repsMax)], null),
+        _Scenario('Topo sem RIR registrado', [all(c.sets, c.repsMax)]),
+      ],
+      final RpeBasedConfig c => [
+        _Scenario('Topo com RPE ${formatRpe(c.targetRpe)}', [
+          all(c.sets, c.repsMax),
+        ], rpe: c.targetRpe),
+        if (c.targetRpe + c.rpeTolerance + 0.5 <= 10)
+          _Scenario(
+            'Topo com RPE ${formatRpe(c.targetRpe + c.rpeTolerance + 0.5)} '
+            '(esforço alto)',
+            [all(c.sets, c.repsMax)],
+            rpe: c.targetRpe + c.rpeTolerance + 0.5,
+          ),
+        _Scenario('Topo sem RPE registrado', [all(c.sets, c.repsMax)]),
       ],
       _ => const [],
     };
@@ -850,7 +1003,7 @@ class _Example extends StatelessWidget {
 
     return Column(
       children: [
-        for (final (label, sessions, rir) in _scenarios())
+        for (final _Scenario(:label, :sessions, :rir, :rpe) in _scenarios())
           Builder(
             builder: (context) {
               final result = strategy.evaluateWith(
@@ -868,6 +1021,7 @@ class _Example extends StatelessWidget {
                             weightKg: load,
                             reps: r,
                             rir: rir,
+                            rpe: rpe,
                             quality: config.requireMarkedValid
                                 ? ExecutionQuality.valid
                                 : null,

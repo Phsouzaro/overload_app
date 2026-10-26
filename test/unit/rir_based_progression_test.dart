@@ -58,7 +58,7 @@ void main() {
         repsMax: 10,
         targetRir: 1,
         rirTolerance: 0,
-        criterion: RirCriterion.lastSet,
+        criterion: EffortCriterion.lastSet,
         rounding: LoadRounding.down,
         requireMarkedValid: true,
       );
@@ -181,7 +181,7 @@ void main() {
       const config = RirBasedConfig(
         repsMin: 8,
         repsMax: 10,
-        criterion: RirCriterion.lastSet,
+        criterion: EffortCriterion.lastSet,
       );
       final r = _eval([
         _session([_set(10, null), _set(10, 0), _set(10, 2)]),

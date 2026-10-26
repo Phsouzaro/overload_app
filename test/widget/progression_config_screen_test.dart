@@ -97,7 +97,11 @@ void main() {
 
     await tester.tap(find.text('Progressão Dupla'));
     await tester.pumpAndSettle();
-    await tester.tap(find.byIcon(Icons.add_circle_outline).first); // 4 séries
+    final addSet = find.byIcon(Icons.add_circle_outline).first; // 4 séries
+    // Centraliza: no rodapé, o "Salvar" flutuante cobre o botão.
+    await Scrollable.ensureVisible(tester.element(addSet), alignment: 0.5);
+    await tester.pumpAndSettle();
+    await tester.tap(addSet);
     await tester.pumpAndSettle();
     await tester.tap(find.text('Salvar'));
     await tester.pumpAndSettle();
@@ -208,6 +212,46 @@ void main() {
       expect(active!.strategy, StrategyId.rirBased);
       final params = jsonDecode(active.paramsJson) as Map;
       expect((params['targetRir'], params['rirTolerance']), (2, 1));
+      await unmount(tester);
+    });
+  });
+
+  group('Progressão por RPE', () {
+    testWidgets('mostra alvo e exemplos calculados com RPE', (tester) async {
+      final ex = await exercise();
+      await open(tester, ex);
+
+      await tester.tap(find.text('Progressão por RPE'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Tolerância de RPE'), findsOneWidget);
+      final noRpe = find.textContaining('Topo sem RPE registrado');
+      await tester.scrollUntilVisible(
+        noRpe,
+        300,
+        scrollable: find.byType(Scrollable).first,
+      );
+      expect(find.textContaining('não é convertido em RPE'), findsWidgets);
+      expect(
+        find.textContaining('Topo com RPE 9 (esforço alto)'),
+        findsOneWidget,
+      );
+      await unmount(tester);
+    });
+
+    testWidgets('salvar grava a estratégia por RPE', (tester) async {
+      final ex = await exercise();
+      await open(tester, ex);
+
+      await tester.tap(find.text('Progressão por RPE'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Salvar'));
+      await tester.pumpAndSettle();
+
+      final active = await repo.activeConfig(ex.id);
+      expect(active!.strategy, StrategyId.rpeBased);
+      final params = jsonDecode(active.paramsJson) as Map;
+      expect((params['targetRpe'], params['rpeTolerance']), (8.0, 0.5));
       await unmount(tester);
     });
   });

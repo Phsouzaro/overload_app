@@ -17,21 +17,27 @@ class SettingsState {
   /// que use RIR.
   final bool alwaysRecordRir;
 
+  /// Mostrar o registro de RPE em todos os exercícios.
+  final bool alwaysRecordRpe;
+
   const SettingsState({
     this.unit = WeightUnit.kg,
     this.defaultRestSeconds = 90,
     this.alwaysRecordRir = false,
+    this.alwaysRecordRpe = false,
   });
 
   SettingsState copyWith({
     WeightUnit? unit,
     int? defaultRestSeconds,
     bool? alwaysRecordRir,
+    bool? alwaysRecordRpe,
   }) {
     return SettingsState(
       unit: unit ?? this.unit,
       defaultRestSeconds: defaultRestSeconds ?? this.defaultRestSeconds,
       alwaysRecordRir: alwaysRecordRir ?? this.alwaysRecordRir,
+      alwaysRecordRpe: alwaysRecordRpe ?? this.alwaysRecordRpe,
     );
   }
 }
@@ -40,6 +46,7 @@ class SettingsNotifier extends Notifier<SettingsState> {
   static const _unitKey = 'weight_unit';
   static const _restKey = 'default_rest_seconds';
   static const _alwaysRirKey = 'always_record_rir';
+  static const _alwaysRpeKey = 'always_record_rpe';
 
   @override
   SettingsState build() {
@@ -50,6 +57,7 @@ class SettingsNotifier extends Notifier<SettingsState> {
       unit: unitStr == 'lbs' ? WeightUnit.lbs : WeightUnit.kg,
       defaultRestSeconds: restSecs,
       alwaysRecordRir: prefs.getBool(_alwaysRirKey) ?? false,
+      alwaysRecordRpe: prefs.getBool(_alwaysRpeKey) ?? false,
     );
   }
 
@@ -57,6 +65,12 @@ class SettingsNotifier extends Notifier<SettingsState> {
     final prefs = ref.read(sharedPreferencesProvider);
     await prefs.setBool(_alwaysRirKey, value);
     state = state.copyWith(alwaysRecordRir: value);
+  }
+
+  Future<void> setAlwaysRecordRpe(bool value) async {
+    final prefs = ref.read(sharedPreferencesProvider);
+    await prefs.setBool(_alwaysRpeKey, value);
+    state = state.copyWith(alwaysRecordRpe: value);
   }
 
   Future<void> setUnit(WeightUnit unit) async {

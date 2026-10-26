@@ -82,7 +82,7 @@ void main() {
 
       // Correção manual do RIR depois do treino.
       for (final x in sets) {
-        await sessions.updateSetDetails(x.id, rir: 2, quality: null);
+        await sessions.updateSetDetails(x.id, rir: 2, rpe: null, quality: null);
       }
       await service.evaluateFinishedSession(s);
 
@@ -104,7 +104,7 @@ void main() {
     await progression.decide(decided.id, RecommendationDecision.kept, now: now);
 
     for (final x in sets) {
-      await sessions.updateSetDetails(x.id, rir: 2, quality: null);
+      await sessions.updateSetDetails(x.id, rir: 2, rpe: null, quality: null);
     }
     await service.evaluateFinishedSession(s);
 
@@ -121,6 +121,7 @@ void main() {
     await sessions.updateSetDetails(
       sets.last.id,
       rir: 2,
+      rpe: null,
       quality: ExecutionQuality.technicalFailure,
     );
     await service.evaluateFinishedSession(s);

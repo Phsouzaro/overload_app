@@ -7,6 +7,7 @@ import '../../../core/database/tables.dart';
 import '../../../core/progression/progression_enums.dart';
 import '../../../core/progression/progression_models.dart';
 import '../../../core/utils/unit_converter.dart';
+import '../../active_session/widgets/set_details_sheet.dart' show formatRpe;
 import '../../settings/providers/settings_provider.dart';
 import '../providers/progression_providers.dart';
 
@@ -263,9 +264,10 @@ String describeTargets(
         t.repsMax == first.repsMax,
   );
   final rir = first.rir != null ? ' · RIR ${first.rir}' : '';
+  final rpe = first.rpe != null ? ' · RPE ${formatRpe(first.rpe!)}' : '';
   if (uniform) {
     final r = reps(first);
-    return '${load(first.weightKg)} — ${targets.length}${r.isEmpty ? ' séries' : ' × $r'}$rir';
+    return '${load(first.weightKg)} — ${targets.length}${r.isEmpty ? ' séries' : ' × $r'}$rir$rpe';
   }
   return [
     for (final t in targets) '${load(t.weightKg)} × ${reps(t)}',

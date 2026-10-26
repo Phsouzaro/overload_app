@@ -16,6 +16,9 @@ abstract class ProgressionConfig {
   /// (ou quando o usuário liga "sempre registrar RIR").
   bool get usesRir => false;
 
+  /// Se a estratégia usa RPE (mesma regra de exibição do RIR).
+  bool get usesRpe => false;
+
   /// Resumo curto exibido na sessão (ex: "3 × 8–12 · RIR 2").
   String get summary => '';
 

@@ -49,3 +49,13 @@ enum ExecutionQuality {
 /// Papel da série dentro da estrutura do exercício. Aquecimento continua sendo
 /// `isWarmup`; ausente (`null`) em séries de trabalho comuns e no histórico.
 enum SetRole { work, topSet, backOff, wave }
+
+/// Em quais séries o esforço (RIR ou RPE) é avaliado. Gravado pelo nome no
+/// JSON da config.
+enum EffortCriterion {
+  /// Todas as séries de trabalho.
+  allSets,
+
+  /// Só a última série de trabalho, onde o cansaço acumulado aparece.
+  lastSet,
+}

@@ -78,6 +78,7 @@ void main() {
         await sessions.updateSetDetails(
           sets[i].id,
           rir: null,
+          rpe: null,
           quality: quality,
         );
       }
@@ -198,8 +199,8 @@ void main() {
     await logAndFinish(s, 50, [12, 12, 12]);
     final sets = await setsOf(s);
     for (final x in sets) {
-      await sessions.updateSetDetails(x.id, rir: 0, quality: null);
-      await sessions.updateSetDetails(x.id, rir: 3, quality: null); // correção
+      await sessions.updateSetDetails(x.id, rir: 0, rpe: null, quality: null);
+      await sessions.updateSetDetails(x.id, rir: 3, rpe: null, quality: null); // correção
     }
     await service.evaluateFinishedSession(s);
 

@@ -256,9 +256,10 @@ class _SetRowWidgetState extends State<SetRowWidget> {
             _IconToggle(
               icon: Icons.tune,
               active: widget.set.rir != null ||
+                  widget.set.rpe != null ||
                   widget.set.executionQuality != null,
               activeColor: cs.primary,
-              tooltip: 'Qualidade e RIR',
+              tooltip: 'Qualidade, RIR e RPE',
               onTap: widget.onDetails!,
             ),
 
