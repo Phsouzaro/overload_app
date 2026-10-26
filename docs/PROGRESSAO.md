@@ -1,6 +1,6 @@
 # Progressão Inteligente — Etapa 0: Auditoria e Planejamento
 
-> Status: **Etapa 3 concluída (Progressão Linear)**; aguardando validação para a Etapa 4.
+> Status: **Etapa 4 concluída (Progressão por RIR)**; aguardando validação para a Etapa 5.
 > Base auditada: `master` em `0a9d098` (v1.2.0+3, schema drift v5).
 
 ---
@@ -366,6 +366,37 @@ A redução é **sempre uma sugestão pendente**: só vira meta se o usuário ac
 ### Limitações conhecidas
 
 - RPE como critério de sucesso fica para a Etapa 5 (o prompt lista "RIR/RPE opcional"; nesta etapa só RIR).
+
+## 13. Etapa 4 — Progressão por RIR (implementada)
+
+### Parâmetros (`RirBasedConfig`)
+
+| Parâmetro | Padrão | Observação |
+|---|---|---|
+| `sets`, `repsMin`, `repsMax` | 3, 8, 12 | Faixa de repetições, como na Dupla. |
+| `targetRir` | 2 | 0–5, obrigatório. |
+| `rirTolerance` | 1 | 0–2. A carga só sobe com RIR ≥ alvo − tolerância. |
+| `criterion` | `allSets` | `lastSet`: avalia o RIR só da última série de trabalho. |
+| `rounding`, `requireMarkedValid` | — | Iguais às demais. |
+
+### Decisão (sessão mais recente)
+
+1. Verificações compartilhadas (`SessionChecks`).
+2. Séries a menos → `maintain` (`incompleteSession`).
+3. Falha técnica/execução inválida → `maintain` (`invalidExecution`). **Falha técnica não é RIR 0**: a série não conta. Falha muscular (⚡) conta como RIR 0.
+4. RIR ausente em alguma série avaliada → `insufficientData` (`rirMissing`), com a mesma carga como sugestão conservadora. **O RIR nunca é estimado a partir de carga e repetições.**
+5. Menor RIR < alvo − tolerância → `maintain` (`effortAboveTarget`). Nunca sugere redução automática.
+6. Alguma série abaixo do mínimo → `maintain` (`belowMinimum`).
+7. Todas no topo da faixa e RIR dentro do limite → `increaseWeight` (`topOfRangeWithinRir`).
+8. Fora do topo com RIR acima de alvo + tolerância → `increaseReps` (`easierThanTarget`): **RIR alto sozinho não sobe a carga**.
+9. Caso contrário → `increaseReps` (`withinRange`).
+
+A variação de percepção entre sessões é tratada pela tolerância; usa-se o **menor** RIR entre as séries avaliadas (o esforço mais alto da sessão).
+
+### Correção manual do RIR (regra 7)
+
+- **Durante o treino:** botão de detalhes da série (já existia), agora sempre com RIR para esta estratégia.
+- **Depois do treino:** Histórico → sessão → tocar numa série corrige RIR e qualidade. Aparece a ação **Reavaliar**, que gera uma nova recomendação pendente com os dados corrigidos. Nada é reavaliado sozinho, e recomendações já decididas não são reescritas (a pendente anterior vira `superseded`).
 
 ## 9. Decisões do proprietário (2026-10-24)
 

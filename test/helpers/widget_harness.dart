@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:intl/date_symbol_data_local.dart';
 import 'package:overload/core/database/app_database.dart';
 import 'package:overload/core/database/database_provider.dart';
 import 'package:overload/features/settings/providers/settings_provider.dart';
@@ -12,6 +13,8 @@ Future<void> pumpWithDb(
   AppDatabase db,
   Widget child,
 ) async {
+  // Como no main.dart: telas formatam datas em pt_BR.
+  await initializeDateFormatting('pt_BR');
   SharedPreferences.setMockInitialValues({});
   final prefs = await SharedPreferences.getInstance();
   await tester.pumpWidget(

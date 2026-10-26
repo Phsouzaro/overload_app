@@ -170,6 +170,48 @@ void main() {
     await unmount(tester);
   });
 
+  group('Progressão por RIR', () {
+    testWidgets('mostra alvo, tolerância e exemplos com RIR', (tester) async {
+      final ex = await exercise();
+      await open(tester, ex);
+
+      await tester.tap(find.text('Progressão por RIR'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Tolerância de RIR'), findsOneWidget);
+      expect(find.text('±1'), findsOneWidget);
+      final noRir = find.textContaining('Topo sem RIR registrado');
+      await tester.scrollUntilVisible(
+        noRir,
+        300,
+        scrollable: find.byType(Scrollable).first,
+      );
+      // Calculado pelo motor: sem RIR, pede o dado em vez de estimar.
+      expect(find.textContaining('não estima o RIR'), findsOneWidget);
+      expect(
+        find.textContaining('Topo com RIR 0 (esforço alto)'),
+        findsOneWidget,
+      );
+      await unmount(tester);
+    });
+
+    testWidgets('salvar grava a estratégia por RIR', (tester) async {
+      final ex = await exercise();
+      await open(tester, ex);
+
+      await tester.tap(find.text('Progressão por RIR'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Salvar'));
+      await tester.pumpAndSettle();
+
+      final active = await repo.activeConfig(ex.id);
+      expect(active!.strategy, StrategyId.rirBased);
+      final params = jsonDecode(active.paramsJson) as Map;
+      expect((params['targetRir'], params['rirTolerance']), (2, 1));
+      await unmount(tester);
+    });
+  });
+
   group('Progressão Linear', () {
     testWidgets('mostra parâmetros e o exemplo de estagnação', (tester) async {
       final ex = await exercise();

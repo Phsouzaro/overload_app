@@ -12,6 +12,7 @@ import '../../../core/progression/progression_rules.dart';
 import '../../../core/progression/progression_strategy.dart';
 import '../../../core/progression/strategies/double_progression.dart';
 import '../../../core/progression/strategies/linear_progression.dart';
+import '../../../core/progression/strategies/rir_based_progression.dart';
 import '../../../core/utils/unit_converter.dart';
 import '../../settings/providers/settings_provider.dart';
 import '../providers/progression_providers.dart';
@@ -39,6 +40,7 @@ class _ProgressionConfigScreenState
   StrategyId? _strategy;
   DoubleProgressionConfig _double = const DoubleProgressionConfig();
   LinearProgressionConfig _linear = const LinearProgressionConfig();
+  RirBasedConfig _rir = const RirBasedConfig();
   late final TextEditingController _increment;
   bool _newBaseline = false;
 
@@ -78,6 +80,8 @@ class _ProgressionConfigScreenState
           _double = DoubleProgressionConfig.fromJson(params);
         case StrategyId.linear:
           _linear = LinearProgressionConfig.fromJson(params);
+        case StrategyId.rirBased:
+          _rir = RirBasedConfig.fromJson(params);
         default:
           break;
       }
@@ -100,6 +104,7 @@ class _ProgressionConfigScreenState
   ProgressionConfig? get _config => switch (_strategy) {
     StrategyId.doubleProgression => _double,
     StrategyId.linear => _linear,
+    StrategyId.rirBased => _rir,
     _ => null,
   };
 
@@ -225,6 +230,11 @@ class _ProgressionConfigScreenState
                       config: _linear,
                       onChanged: (c) => setState(() => _linear = c),
                     ),
+                  if (_strategy == StrategyId.rirBased)
+                    _RirBasedForm(
+                      config: _rir,
+                      onChanged: (c) => setState(() => _rir = c),
+                    ),
                   _IncrementField(
                     controller: _increment,
                     unit: unit,
@@ -275,8 +285,117 @@ class _ProgressionConfigScreenState
       'Aumenta as repetições dentro da faixa e depois a carga',
     StrategyId.linear =>
       'Meta fixa de repetições; sobe a carga após sessões bem-sucedidas',
+    StrategyId.rirBased =>
+      'Usa o RIR que você informa e a faixa de repetições para subir a carga',
     _ => '',
   };
+}
+
+class _RirBasedForm extends StatelessWidget {
+  final RirBasedConfig config;
+  final ValueChanged<RirBasedConfig> onChanged;
+
+  const _RirBasedForm({required this.config, required this.onChanged});
+
+  @override
+  Widget build(BuildContext context) {
+    final textTheme = Theme.of(context).textTheme;
+    final outline = Theme.of(context).colorScheme.outline;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _Stepper(
+          label: 'Séries de trabalho',
+          value: config.sets,
+          min: 1,
+          max: 10,
+          onChanged: (v) => onChanged(config.copyWith(sets: v)),
+        ),
+        const SizedBox(height: 8),
+        Text(
+          'Faixa de repetições: ${config.repsMin}–${config.repsMax}',
+          style: textTheme.bodyLarge,
+        ),
+        RangeSlider(
+          values: RangeValues(
+            config.repsMin.toDouble(),
+            config.repsMax.toDouble(),
+          ),
+          min: 1,
+          max: 30,
+          divisions: 29,
+          labels: RangeLabels('${config.repsMin}', '${config.repsMax}'),
+          onChanged: (r) => onChanged(
+            config.copyWith(repsMin: r.start.round(), repsMax: r.end.round()),
+          ),
+        ),
+        _Stepper(
+          label: 'RIR-alvo',
+          value: config.targetRir,
+          min: 0,
+          max: 5,
+          onChanged: (v) => onChanged(config.copyWith(targetRir: v)),
+        ),
+        _Stepper(
+          label: 'Tolerância de RIR',
+          value: config.rirTolerance,
+          min: 0,
+          max: 2,
+          format: (v) => '±$v',
+          onChanged: (v) => onChanged(config.copyWith(rirTolerance: v)),
+        ),
+        Text(
+          'A carga só sobe com RIR de pelo menos '
+          '${config.targetRir - config.rirTolerance} e todas as séries no '
+          'topo da faixa. RIR alto sozinho não sobe a carga.',
+          style: textTheme.bodySmall?.copyWith(color: outline),
+        ),
+        const SizedBox(height: 8),
+        Text('Avaliar o RIR de', style: textTheme.bodyLarge),
+        const SizedBox(height: 6),
+        SegmentedButton<RirCriterion>(
+          segments: const [
+            ButtonSegment(
+              value: RirCriterion.allSets,
+              label: Text('Todas as séries'),
+            ),
+            ButtonSegment(
+              value: RirCriterion.lastSet,
+              label: Text('Última série'),
+            ),
+          ],
+          selected: {config.criterion},
+          onSelectionChanged: (s) =>
+              onChanged(config.copyWith(criterion: s.first)),
+        ),
+        const SizedBox(height: 8),
+        Text('Arredondar carga sugerida', style: textTheme.bodyLarge),
+        const SizedBox(height: 6),
+        SegmentedButton<LoadRounding>(
+          segments: const [
+            ButtonSegment(
+              value: LoadRounding.nearest,
+              label: Text('Mais próximo'),
+            ),
+            ButtonSegment(value: LoadRounding.down, label: Text('Para baixo')),
+            ButtonSegment(value: LoadRounding.up, label: Text('Para cima')),
+          ],
+          selected: {config.rounding},
+          onSelectionChanged: (s) =>
+              onChanged(config.copyWith(rounding: s.first)),
+        ),
+        SwitchListTile(
+          contentPadding: EdgeInsets.zero,
+          value: config.requireMarkedValid,
+          onChanged: (v) => onChanged(config.copyWith(requireMarkedValid: v)),
+          title: const Text('Exigir execução marcada como válida'),
+          subtitle: const Text(
+            'Desligado: séries sem qualidade marcada contam como válidas',
+          ),
+        ),
+      ],
+    );
+  }
 }
 
 class _Section extends StatelessWidget {
@@ -659,14 +778,14 @@ class _Example extends StatelessWidget {
     required this.unit,
   });
 
-  /// Cenários: rótulo e sessões (mais recente primeiro) com as reps de cada
-  /// série.
-  List<(String, List<List<int>>)> _scenarios() {
+  /// Cenários: rótulo, sessões (mais recente primeiro) com as reps de cada
+  /// série, e o RIR registrado nelas (`null` = não registrado).
+  List<(String, List<List<int>>, int?)> _scenarios() {
     List<int> all(int sets, int reps) => [for (var i = 0; i < sets; i++) reps];
     return switch (config) {
       final DoubleProgressionConfig c => [
-        ('Dentro da faixa', [all(c.sets, c.repsMin)]),
-        ('Topo da faixa', [all(c.sets, c.repsMax)]),
+        ('Dentro da faixa', [all(c.sets, c.repsMin)], c.targetRir),
+        ('Topo da faixa', [all(c.sets, c.repsMax)], c.targetRir),
       ],
       final LinearProgressionConfig c => [
         (
@@ -675,6 +794,7 @@ class _Example extends StatelessWidget {
             for (var i = 0; i < c.successesRequired; i++)
               all(c.sets, c.targetReps),
           ],
+          c.targetRir,
         ),
         (
           'Faltou 1 rep',
@@ -684,6 +804,7 @@ class _Example extends StatelessWidget {
                 i == c.sets - 1 ? c.targetReps - 1 : c.targetReps,
             ],
           ],
+          c.targetRir,
         ),
         (
           '${c.failureTolerance} falha(s) seguida(s)',
@@ -694,17 +815,22 @@ class _Example extends StatelessWidget {
                   j == c.sets - 1 ? c.targetReps - 1 : c.targetReps,
               ],
           ],
+          c.targetRir,
         ),
+      ],
+      final RirBasedConfig c => [
+        ('Topo com RIR ${c.targetRir}', [all(c.sets, c.repsMax)], c.targetRir),
+        if (c.targetRir - c.rirTolerance - 1 >= 0)
+          (
+            'Topo com RIR ${c.targetRir - c.rirTolerance - 1} (esforço alto)',
+            [all(c.sets, c.repsMax)],
+            c.targetRir - c.rirTolerance - 1,
+          ),
+        ('Topo sem RIR registrado', [all(c.sets, c.repsMax)], null),
       ],
       _ => const [],
     };
   }
-
-  int? get _targetRir => switch (config) {
-    final DoubleProgressionConfig c => c.targetRir,
-    final LinearProgressionConfig c => c.targetRir,
-    _ => null,
-  };
 
   @override
   Widget build(BuildContext context) {
@@ -724,7 +850,7 @@ class _Example extends StatelessWidget {
 
     return Column(
       children: [
-        for (final (label, sessions) in _scenarios())
+        for (final (label, sessions, rir) in _scenarios())
           Builder(
             builder: (context) {
               final result = strategy.evaluateWith(
@@ -741,7 +867,7 @@ class _Example extends StatelessWidget {
                           SetRecord(
                             weightKg: load,
                             reps: r,
-                            rir: _targetRir,
+                            rir: rir,
                             quality: config.requireMarkedValid
                                 ? ExecutionQuality.valid
                                 : null,
@@ -758,7 +884,9 @@ class _Example extends StatelessWidget {
                 child: ListTile(
                   title: Text('$label: $repsText'),
                   subtitle: Text(
-                    result.nextTargets.isEmpty
+                    result.nextTargets.isEmpty ||
+                            result.status ==
+                                RecommendationStatus.insufficientData
                         ? result.explanation
                         : 'Próxima: ${describeTargets(result.nextTargets, unit, bodyweight: bodyweight)}',
                   ),

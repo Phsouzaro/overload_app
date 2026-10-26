@@ -1,11 +1,15 @@
+import 'package:drift/drift.dart' show Value;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import '../../../core/database/app_database.dart';
 import '../../../core/database/tables.dart';
+import '../../../core/progression/progression_enums.dart';
 import '../../../core/utils/unit_converter.dart';
 import '../../active_session/providers/session_providers.dart';
 import '../../active_session/widgets/session_notes_dialog.dart';
+import '../../active_session/widgets/set_details_sheet.dart';
+import '../../progression/providers/progression_providers.dart';
 import '../../settings/providers/settings_provider.dart';
 
 class SessionDetailScreen extends ConsumerWidget {
@@ -38,16 +42,14 @@ class SessionDetailScreen extends ConsumerWidget {
             child: Text(
               DateFormat('EEEE, dd/MM/yyyy', 'pt_BR').format(startedAt),
               style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: Theme.of(context).colorScheme.outline,
-                  ),
+                color: Theme.of(context).colorScheme.outline,
+              ),
             ),
           ),
         ),
       ),
       body: FutureBuilder(
-        future: ref
-            .read(sessionRepositoryProvider)
-            .getSessionDetail(sessionId),
+        future: ref.read(sessionRepositoryProvider).getSessionDetail(sessionId),
         builder: (context, snapshot) {
           if (!snapshot.hasData) {
             return const Center(child: CircularProgressIndicator());
@@ -57,8 +59,7 @@ class SessionDetailScreen extends ConsumerWidget {
             return Center(
               child: Text(
                 'Nenhum dado registrado',
-                style: TextStyle(
-                    color: Theme.of(context).colorScheme.outline),
+                style: TextStyle(color: Theme.of(context).colorScheme.outline),
               ),
             );
           }
@@ -84,7 +85,9 @@ class SessionDetailScreen extends ConsumerWidget {
               Card(
                 child: Padding(
                   padding: const EdgeInsets.symmetric(
-                      vertical: 16, horizontal: 8),
+                    vertical: 16,
+                    horizontal: 8,
+                  ),
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                     children: [
@@ -102,8 +105,11 @@ class SessionDetailScreen extends ConsumerWidget {
                       _StatItem(
                         icon: Icons.monitor_weight_outlined,
                         label: 'Volume',
-                        value: UnitConverter.format(totalVolume, unit,
-                            decimals: 0),
+                        value: UnitConverter.format(
+                          totalVolume,
+                          unit,
+                          decimals: 0,
+                        ),
                       ),
                     ],
                   ),
@@ -115,10 +121,13 @@ class SessionDetailScreen extends ConsumerWidget {
               const SizedBox(height: 12),
 
               // Exercícios
-              ...details.map((d) => _ExerciseDetailCard(
-                    detail: d,
-                    unit: unit,
-                  )),
+              ...details.map(
+                (d) => _ExerciseDetailCard(
+                  sessionId: sessionId,
+                  detail: d,
+                  unit: unit,
+                ),
+              ),
             ],
           );
         },
@@ -195,8 +204,11 @@ class _StatItem extends StatelessWidget {
   final String label;
   final String value;
 
-  const _StatItem(
-      {required this.icon, required this.label, required this.value});
+  const _StatItem({
+    required this.icon,
+    required this.label,
+    required this.value,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -211,15 +223,110 @@ class _StatItem extends StatelessWidget {
   }
 }
 
-class _ExerciseDetailCard extends StatelessWidget {
-  final SessionSetDetail detail;
-  final WeightUnit unit;
-
-  const _ExerciseDetailCard({required this.detail, required this.unit});
+class _QualityIcon extends StatelessWidget {
+  final ExecutionQuality quality;
+  const _QualityIcon(this.quality);
 
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
+    final (icon, color, tip) = switch (quality) {
+      ExecutionQuality.valid => (Icons.verified_outlined, cs.primary, 'Válida'),
+      ExecutionQuality.technicalFailure => (
+        Icons.warning_amber_rounded,
+        cs.tertiary,
+        'Falha técnica',
+      ),
+      ExecutionQuality.invalid => (Icons.block, cs.error, 'Inválida'),
+    };
+    return Tooltip(
+      message: tip,
+      child: Icon(icon, size: 14, color: color),
+    );
+  }
+}
+
+/// Séries de um exercício da sessão. Tocar numa série corrige a qualidade da
+/// execução e o RIR registrados.
+class _ExerciseDetailCard extends ConsumerStatefulWidget {
+  final int sessionId;
+  final SessionSetDetail detail;
+  final WeightUnit unit;
+
+  const _ExerciseDetailCard({
+    required this.sessionId,
+    required this.detail,
+    required this.unit,
+  });
+
+  @override
+  ConsumerState<_ExerciseDetailCard> createState() =>
+      _ExerciseDetailCardState();
+}
+
+class _ExerciseDetailCardState extends ConsumerState<_ExerciseDetailCard> {
+  late List<SessionSet> _sets = widget.detail.sets;
+
+  SessionSetDetail get detail => widget.detail;
+  WeightUnit get unit => widget.unit;
+
+  Future<void> _correct(int index) async {
+    final set = _sets[index];
+    final details = await showSetDetailsSheet(
+      context,
+      rir: set.rir,
+      quality: set.executionQuality,
+      askRir: true,
+    );
+    if (details == null || !mounted) return;
+    await ref
+        .read(sessionRepositoryProvider)
+        .updateSetDetails(set.id, rir: details.rir, quality: details.quality);
+    if (!mounted) return;
+    setState(() {
+      _sets = [
+        for (var i = 0; i < _sets.length; i++)
+          i == index
+              ? _sets[i].copyWith(
+                  rir: Value(details.rir),
+                  executionQuality: Value(details.quality),
+                )
+              : _sets[i],
+      ];
+    });
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        SnackBar(
+          content: const Text('Série corrigida'),
+          action: SnackBarAction(label: 'Reavaliar', onPressed: _reevaluate),
+          duration: const Duration(seconds: 6),
+        ),
+      );
+  }
+
+  /// Gera nova sugestão (pendente) com os dados corrigidos. Recomendações já
+  /// decididas não mudam.
+  Future<void> _reevaluate() async {
+    final ids = await ref
+        .read(progressionServiceProvider)
+        .evaluateFinishedSession(widget.sessionId);
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          ids.isEmpty
+              ? 'Nenhum exercício desta sessão tem estratégia de progressão.'
+              : 'Nova sugestão gerada: ela aparece ao iniciar o próximo treino.',
+        ),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final editable = detail.exercise.setType != SetType.time;
     return Card(
       margin: const EdgeInsets.only(bottom: 10),
       child: Padding(
@@ -233,43 +340,61 @@ class _ExerciseDetailCard extends StatelessWidget {
             ),
             Text(
               detail.exercise.muscleGroup,
-              style: Theme.of(context)
-                  .textTheme
-                  .bodySmall
-                  ?.copyWith(color: cs.outline),
+              style: Theme.of(
+                context,
+              ).textTheme.bodySmall?.copyWith(color: cs.outline),
             ),
             const SizedBox(height: 8),
-            ...detail.sets.asMap().entries.map((e) {
+            ..._sets.asMap().entries.map((e) {
               final s = e.value;
               final label = _formatSet(s);
               final isWarmup = s.isWarmup;
-              return Padding(
-                padding: const EdgeInsets.symmetric(vertical: 2),
-                child: Row(
-                  children: [
-                    SizedBox(
-                      width: 20,
-                      child: Text(
-                        '${e.key + 1}',
-                        style: TextStyle(
-                          fontWeight: FontWeight.bold,
-                          fontSize: 12,
-                          color: isWarmup ? cs.tertiary : cs.onSurface,
+              return InkWell(
+                onTap: editable ? () => _correct(e.key) : null,
+                borderRadius: BorderRadius.circular(6),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 2),
+                  child: Row(
+                    children: [
+                      SizedBox(
+                        width: 20,
+                        child: Text(
+                          '${e.key + 1}',
+                          style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 12,
+                            color: isWarmup ? cs.tertiary : cs.onSurface,
+                          ),
                         ),
                       ),
-                    ),
-                    if (isWarmup) ...[
-                      Icon(Icons.whatshot,
-                          size: 12, color: cs.tertiary),
-                      const SizedBox(width: 4),
+                      if (isWarmup) ...[
+                        Icon(Icons.whatshot, size: 12, color: cs.tertiary),
+                        const SizedBox(width: 4),
+                      ],
+                      Text(label, style: Theme.of(context).textTheme.bodySmall),
+                      if (s.toFailure) ...[
+                        const SizedBox(width: 4),
+                        Icon(Icons.bolt, size: 12, color: cs.error),
+                      ],
+                      if (s.rir != null) ...[
+                        const SizedBox(width: 6),
+                        Text(
+                          'RIR ${s.rir == 5 ? '5+' : s.rir}',
+                          style: Theme.of(
+                            context,
+                          ).textTheme.bodySmall?.copyWith(color: cs.primary),
+                        ),
+                      ],
+                      if (s.executionQuality != null) ...[
+                        const SizedBox(width: 6),
+                        _QualityIcon(s.executionQuality!),
+                      ],
+                      if (editable) ...[
+                        const Spacer(),
+                        Icon(Icons.tune, size: 14, color: cs.outline),
+                      ],
                     ],
-                    Text(label,
-                        style: Theme.of(context).textTheme.bodySmall),
-                    if (s.toFailure) ...[
-                      const SizedBox(width: 4),
-                      Icon(Icons.bolt, size: 12, color: cs.error),
-                    ],
-                  ],
+                  ),
                 ),
               );
             }),
@@ -281,14 +406,15 @@ class _ExerciseDetailCard extends StatelessWidget {
 
   String _formatSet(SessionSet s) {
     return switch (s.setType) {
-      SetType.weight => s.weightKg != null && s.reps != null
-          ? '${UnitConverter.toDisplay(s.weightKg!, unit).toStringAsFixed(1)} ${UnitConverter.label(unit)} × ${s.reps}'
-          : '—',
-      SetType.time =>
-        s.durationSeconds != null ? '${s.durationSeconds}s' : '—',
-      SetType.bodyweight => s.reps != null
-          ? '${UnitConverter.extraLoad(s.weightKg, unit)}× ${s.reps} reps'
-          : '—',
+      SetType.weight =>
+        s.weightKg != null && s.reps != null
+            ? '${UnitConverter.toDisplay(s.weightKg!, unit).toStringAsFixed(1)} ${UnitConverter.label(unit)} × ${s.reps}'
+            : '—',
+      SetType.time => s.durationSeconds != null ? '${s.durationSeconds}s' : '—',
+      SetType.bodyweight =>
+        s.reps != null
+            ? '${UnitConverter.extraLoad(s.weightKg, unit)}× ${s.reps} reps'
+            : '—',
     };
   }
 }

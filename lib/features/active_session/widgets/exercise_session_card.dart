@@ -9,6 +9,7 @@ import '../../../core/utils/one_rm_calculator.dart';
 import '../../../core/utils/unit_converter.dart';
 import '../../../core/progression/strategies/double_progression.dart';
 import '../../../core/progression/strategies/linear_progression.dart';
+import '../../../core/progression/strategies/rir_based_progression.dart';
 import '../../progression/providers/progression_providers.dart';
 import '../../reports/providers/report_providers.dart';
 import '../../settings/providers/settings_provider.dart';
@@ -437,13 +438,16 @@ class _ProgressionLine extends StatelessWidget {
           .length;
       progress = 'Meta: ${done.clamp(0, config.sets)}/${config.sets}';
     }
-    if (config is DoubleProgressionConfig) {
+    final range = switch (config) {
+      final DoubleProgressionConfig c => (sets: c.sets, top: c.repsMax),
+      final RirBasedConfig c => (sets: c.sets, top: c.repsMax),
+      _ => null,
+    };
+    if (range != null && sets.any((s) => s.reps != null)) {
       final atTop = sets
-          .where((s) => !s.isWarmup && (s.reps ?? 0) >= config.repsMax)
+          .where((s) => !s.isWarmup && (s.reps ?? 0) >= range.top)
           .length;
-      if (sets.any((s) => s.reps != null)) {
-        progress = 'Topo da faixa: ${atTop.clamp(0, config.sets)}/${config.sets}';
-      }
+      progress = 'Topo da faixa: ${atTop.clamp(0, range.sets)}/${range.sets}';
     }
 
     return Padding(
