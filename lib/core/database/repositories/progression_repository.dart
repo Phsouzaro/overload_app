@@ -7,6 +7,16 @@ import '../../progression/progression_models.dart';
 import '../app_database.dart';
 import 'session_repository.dart' show isFilledSet;
 
+class RecommendationWithExercise {
+  final ProgressionRecommendationEntry recommendation;
+  final Exercise exercise;
+
+  const RecommendationWithExercise({
+    required this.recommendation,
+    required this.exercise,
+  });
+}
+
 /// Persistência do mecanismo de progressão: configurações versionadas,
 /// recomendações e decisões do usuário, e leitura do histórico no formato do
 /// motor.
@@ -182,6 +192,46 @@ class ProgressionRepository {
           ..limit(1))
         .getSingleOrNull();
   }
+
+  /// Recomendações geradas ao fim da sessão [sessionId], com o exercício.
+  Stream<List<RecommendationWithExercise>> watchSessionRecommendations(
+      int sessionId) {
+    final query = _withExercise()
+      ..where(_db.progressionRecommendations.sourceSessionId.equals(sessionId) &
+          _db.progressionRecommendations.decision
+              .equalsValue(RecommendationDecision.superseded)
+              .not())
+      ..orderBy([OrderingTerm.asc(_db.progressionRecommendations.id)]);
+    return query.watch().map(_mapWithExercise);
+  }
+
+  /// Recomendações ainda pendentes dos exercícios informados.
+  Future<List<RecommendationWithExercise>> pendingForExercises(
+      Iterable<int> exerciseIds) async {
+    final query = _withExercise()
+      ..where(_db.progressionRecommendations.exerciseId.isIn(exerciseIds) &
+          _db.progressionRecommendations.decision
+              .equalsValue(RecommendationDecision.pending))
+      ..orderBy([OrderingTerm.asc(_db.progressionRecommendations.id)]);
+    return _mapWithExercise(await query.get());
+  }
+
+  JoinedSelectStatement _withExercise() {
+    return _db.select(_db.progressionRecommendations).join([
+      innerJoin(
+        _db.exercises,
+        _db.exercises.id.equalsExp(_db.progressionRecommendations.exerciseId),
+      ),
+    ]);
+  }
+
+  List<RecommendationWithExercise> _mapWithExercise(List<TypedResult> rows) => [
+        for (final row in rows)
+          RecommendationWithExercise(
+            recommendation: row.readTable(_db.progressionRecommendations),
+            exercise: row.readTable(_db.exercises),
+          ),
+      ];
 
   /// Recomendações do exercício, mais recentes primeiro (todas as decisões).
   Stream<List<ProgressionRecommendationEntry>> watchRecommendations(

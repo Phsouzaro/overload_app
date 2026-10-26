@@ -1,0 +1,172 @@
+import 'dart:convert';
+
+import 'package:drift/drift.dart' show driftRuntimeOptions;
+import 'package:flutter/material.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:overload/core/database/app_database.dart';
+import 'package:overload/core/database/repositories/progression_repository.dart';
+import 'package:overload/core/database/tables.dart';
+import 'package:overload/core/progression/progression_enums.dart';
+import 'package:overload/features/progression/screens/progression_config_screen.dart';
+
+import '../helpers/progression_fixtures.dart';
+import '../helpers/widget_harness.dart';
+
+void main() {
+  setUpAll(() => driftRuntimeOptions.dontWarnAboutMultipleDatabases = true);
+
+  late AppDatabase db;
+  late ProgressionRepository repo;
+
+  setUp(() async {
+    db = await openTestDb();
+    repo = ProgressionRepository(db);
+  });
+
+  tearDown(() => db.close());
+
+  Future<Exercise> exercise({SetType type = SetType.weight}) async {
+    final id = await insertExercise(db, name: 'Exercício Teste', setType: type);
+    return (db.select(db.exercises)..where((e) => e.id.equals(id))).getSingle();
+  }
+
+  /// Abre a tela a partir de um botão, para o "Salvar" poder voltar.
+  Widget launcher(Exercise ex) => Builder(
+    builder: (context) => Scaffold(
+      body: Center(
+        child: TextButton(
+          onPressed: () => Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) => ProgressionConfigScreen(exercise: ex),
+            ),
+          ),
+          child: const Text('abrir'),
+        ),
+      ),
+    ),
+  );
+
+  Future<void> open(WidgetTester tester, Exercise ex) async {
+    await pumpWithDb(tester, db, launcher(ex));
+    await tester.tap(find.text('abrir'));
+    await tester.pumpAndSettle();
+  }
+
+  testWidgets('padrão é "Sem progressão automática"', (tester) async {
+    final ex = await exercise();
+    await open(tester, ex);
+
+    final manual = tester.widget<RadioListTile<StrategyId?>>(
+      find.widgetWithText(
+        RadioListTile<StrategyId?>,
+        'Sem progressão automática',
+      ),
+    );
+    expect(manual.value, isNull);
+    expect(find.text('Parâmetros'), findsNothing);
+    await unmount(tester);
+  });
+
+  testWidgets(
+    'escolher Progressão Dupla mostra parâmetros e exemplo calculado',
+    (tester) async {
+      final ex = await exercise();
+      await open(tester, ex);
+
+      await tester.tap(find.text('Progressão Dupla'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Parâmetros'), findsOneWidget);
+      expect(find.text('Faixa de repetições: 8–12'), findsOneWidget);
+      await tester.scrollUntilVisible(
+        find.text('Topo da faixa: 12/12/12'),
+        300,
+        scrollable: find.byType(Scrollable).first,
+      );
+      expect(find.text('Próxima: 52.5 kg — 3 × 8–12'), findsOneWidget);
+      await unmount(tester);
+    },
+  );
+
+  testWidgets('salvar grava a config com os parâmetros escolhidos', (
+    tester,
+  ) async {
+    final ex = await exercise();
+    await open(tester, ex);
+
+    await tester.tap(find.text('Progressão Dupla'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byIcon(Icons.add_circle_outline).first); // 4 séries
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Salvar'));
+    await tester.pumpAndSettle();
+
+    final active = await repo.activeConfig(ex.id);
+    expect(active!.strategy, StrategyId.doubleProgression);
+    expect(active.incrementKg, 2.5);
+    final params = jsonDecode(active.paramsJson) as Map;
+    expect((params['sets'], params['repsMin'], params['repsMax']), (4, 8, 12));
+    expect(find.text('abrir'), findsOneWidget); // voltou
+    await unmount(tester);
+  });
+
+  testWidgets('voltar para "Sem progressão" desativa a config', (tester) async {
+    final ex = await exercise();
+    await repo.saveConfig(
+      exerciseId: ex.id,
+      strategy: StrategyId.doubleProgression,
+      params: const {'sets': 3, 'repsMin': 8, 'repsMax': 12},
+      incrementKg: 2.5,
+      now: DateTime(2026, 3, 1),
+    );
+    await open(tester, ex);
+    expect(find.text('Parâmetros'), findsOneWidget); // carregou a existente
+
+    await tester.tap(find.text('Sem progressão automática'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Salvar'));
+    await tester.pumpAndSettle();
+
+    expect(await repo.activeConfig(ex.id), isNull);
+    await unmount(tester);
+  });
+
+  testWidgets('incremento inválido bloqueia o salvar', (tester) async {
+    final ex = await exercise();
+    await open(tester, ex);
+    await tester.tap(find.text('Progressão Dupla'));
+    await tester.pumpAndSettle();
+
+    final increment = find.widgetWithText(TextField, 'Incremento de carga');
+    await tester.scrollUntilVisible(
+      increment,
+      300,
+      scrollable: find.byType(Scrollable).first,
+    );
+    await tester.enterText(increment, '0');
+    await tester.pumpAndSettle();
+
+    expect(find.textContaining('incremento: informe'), findsOneWidget);
+    final save = tester.widget<FloatingActionButton>(
+      find.byType(FloatingActionButton),
+    );
+    expect(save.onPressed, isNull);
+    await unmount(tester);
+  });
+
+  testWidgets('exercício por tempo não oferece progressão automática', (
+    tester,
+  ) async {
+    final ex = await exercise(type: SetType.time);
+    await open(tester, ex);
+
+    expect(
+      find.textContaining('não têm progressão automática'),
+      findsOneWidget,
+    );
+    expect(find.text('Progressão Dupla'), findsNothing);
+    expect(find.byType(FloatingActionButton), findsNothing);
+    await unmount(tester);
+  });
+}

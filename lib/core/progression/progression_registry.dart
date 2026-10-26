@@ -1,5 +1,6 @@
 import 'progression_enums.dart';
 import 'progression_strategy.dart';
+import 'strategies/double_progression.dart';
 
 /// Estratégias disponíveis, por identificador.
 class ProgressionRegistry {
@@ -9,7 +10,9 @@ class ProgressionRegistry {
     : _strategies = {for (final s in strategies) s.id: s};
 
   /// Estratégias do app. Cada etapa do plano registra a sua aqui.
-  static final standard = ProgressionRegistry(const []);
+  static final standard = ProgressionRegistry(const [
+    DoubleProgressionStrategy(),
+  ]);
 
   ProgressionStrategy? strategyFor(StrategyId id) => _strategies[id];
 

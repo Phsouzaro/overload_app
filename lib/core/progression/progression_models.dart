@@ -58,12 +58,23 @@ class ExerciseContext {
   /// usuário: 5 lb ≈ 2,268 kg).
   final double incrementKg;
 
+  /// Formata uma carga em kg na unidade do usuário, para as justificativas.
+  final String Function(double kg) formatLoad;
+
   const ExerciseContext({
     required this.exerciseId,
     required this.name,
     required this.loadType,
     required this.incrementKg,
+    this.formatLoad = formatKg,
   });
+
+  static String formatKg(double kg) {
+    final text = kg == kg.roundToDouble()
+        ? kg.toStringAsFixed(0)
+        : kg.toStringAsFixed(kg * 10 == (kg * 10).roundToDouble() ? 1 : 2);
+    return '${text.replaceAll('.', ',')} kg';
+  }
 }
 
 /// Meta planejada para uma série da próxima sessão.

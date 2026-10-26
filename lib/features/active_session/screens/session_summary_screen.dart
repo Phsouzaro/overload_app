@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/database/app_database.dart';
 import '../../../core/utils/unit_converter.dart';
+import '../../progression/providers/progression_providers.dart';
+import '../../progression/widgets/recommendation_card.dart';
 import '../../settings/providers/settings_provider.dart';
 import '../providers/session_providers.dart';
 
@@ -38,7 +40,7 @@ class SessionSummaryScreen extends ConsumerWidget {
                 .inSeconds;
             final unit = ref.read(settingsProvider).unit;
             return Center(
-              child: Padding(
+              child: SingleChildScrollView(
                 padding: const EdgeInsets.all(32),
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
@@ -86,7 +88,8 @@ class SessionSummaryScreen extends ConsumerWidget {
                         ),
                       ],
                     ),
-                    const SizedBox(height: 48),
+                    _SessionRecommendations(sessionId: sessionId),
+                    const SizedBox(height: 32),
                     FilledButton(
                       onPressed: () =>
                           Navigator.popUntil(context, (r) => r.isFirst),
@@ -109,6 +112,38 @@ class SessionSummaryScreen extends ConsumerWidget {
     final m = seconds ~/ 60;
     final s = seconds % 60;
     return '${m.toString().padLeft(2, '0')}:${s.toString().padLeft(2, '0')}';
+  }
+}
+
+/// Sugestões de progressão geradas ao encerrar esta sessão.
+class _SessionRecommendations extends ConsumerWidget {
+  final int sessionId;
+
+  const _SessionRecommendations({required this.sessionId});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final recs =
+        ref.watch(sessionRecommendationsProvider(sessionId)).valueOrNull ??
+            const [];
+    if (recs.isEmpty) return const SizedBox.shrink();
+
+    return Padding(
+      padding: const EdgeInsets.only(top: 32),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text('Progressão', style: Theme.of(context).textTheme.titleLarge),
+          const SizedBox(height: 4),
+          for (final r in recs)
+            RecommendationCard(
+              key: ValueKey(r.recommendation.id),
+              recommendation: r.recommendation,
+              exercise: r.exercise,
+            ),
+        ],
+      ),
+    );
   }
 }
 

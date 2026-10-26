@@ -3,6 +3,7 @@ import 'dart:math';
 import 'package:drift/drift.dart';
 import '../app_database.dart';
 import '../tables.dart';
+import '../../progression/progression_enums.dart';
 import 'progression_repository.dart';
 
 class SessionExerciseWithExercise {
@@ -268,6 +269,20 @@ class SessionRepository {
         toFailure: toFailure != null ? Value(toFailure) : const Value.absent(),
       ),
     );
+  }
+
+  /// Grava RIR e qualidade da execução de uma série. `null` limpa o valor
+  /// (volta a "não registrado"), permitindo corrigir o que foi informado.
+  Future<void> updateSetDetails(
+    int setId, {
+    required int? rir,
+    required ExecutionQuality? quality,
+  }) {
+    return (_db.update(_db.sessionSets)..where((s) => s.id.equals(setId)))
+        .write(SessionSetsCompanion(
+      rir: Value(rir),
+      executionQuality: Value(quality),
+    ));
   }
 
   Future<void> deleteSet(int setId) {

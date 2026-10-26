@@ -67,7 +67,7 @@ void main() {
     });
 
     test(
-      'registro padrão do app (sem estratégias nesta etapa) não grava nada',
+      'config de estratégia não registrada não grava nada',
       () async {
         await configure();
         final s = await insertWorkout(
@@ -77,8 +77,12 @@ void main() {
           date: now,
         );
 
-        final standard = ProgressionService(db, clock: () => now);
-        expect(await standard.evaluateFinishedSession(s), isEmpty);
+        final empty = ProgressionService(
+          db,
+          registry: ProgressionRegistry(const []),
+          clock: () => now,
+        );
+        expect(await empty.evaluateFinishedSession(s), isEmpty);
         expect(await allRecs(), isEmpty);
       },
     );

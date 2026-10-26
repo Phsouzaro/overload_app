@@ -1,6 +1,6 @@
 # Progressão Inteligente — Etapa 0: Auditoria e Planejamento
 
-> Status: **Etapa 1 concluída (infraestrutura)**; aguardando validação para a Etapa 2.
+> Status: **Etapa 2 concluída (Progressão Dupla)**; aguardando validação para a Etapa 3.
 > Base auditada: `master` em `0a9d098` (v1.2.0+3, schema drift v5).
 
 ---
@@ -280,6 +280,50 @@ Cada etapa termina com: `flutter test` + `flutter analyze` executados de verdade
 - Recomendação nasce `pending`; só `accepted`/`adjusted` viram metas, e uma única vez (sessão descartada libera de novo).
 - Metas vão para `target*` das séries; os campos registrados (`weightKg`, `reps`) continuam vazios até o usuário confirmar.
 - Erro dentro de uma estratégia é registrado no log e não impede o encerramento.
+
+## 11. Etapa 2 — Progressão Dupla (implementada)
+
+### Parâmetros (`DoubleProgressionConfig`)
+
+| Parâmetro | Padrão | Observação |
+|---|---|---|
+| `sets` | 3 | 1–10 séries de trabalho. |
+| `repsMin` / `repsMax` | 8 / 12 | 1–50; mínimo ≤ máximo. |
+| `targetRir` | nenhum | 0–5. Com RIR-alvo, o RIR passa a ser pedido na sessão. |
+| `criterion` | `allSets` | `mainSet` exige só a série principal no topo (demais ≥ mínimo). |
+| `mainSetNumber` | 1 | Usado com `mainSet`; validado contra `sets`. |
+| `rounding` | `nearest` | `down`/`up`: como arredondar a carga nova ao incremento. |
+| `requireMarkedValid` | false | Exige qualidade marcada como válida. |
+| incremento | 2,5 kg / 5 lb | Coluna da config, em kg; digitado na unidade do usuário. |
+
+**Decisão de modelagem:** "comportamento após aumentar a carga" é **fixo** (regra 7): a meta mantém a faixa e o campo de repetições começa no mínimo. Não virou parâmetro porque a outra opção (manter as repetições altas com mais carga) contraria a própria definição da estratégia.
+
+### Decisão (ordem de avaliação, só a sessão mais recente)
+
+1. Sem incremento → `manualReview`. Sem histórico ou sem séries de trabalho → `insufficientData`.
+2. Cargas diferentes entre as séries consideradas → `manualReview` (`mixedLoads`). A estratégia não presume qual carga é a de trabalho.
+3. Mais de 21 dias desde a última sessão → `manualReview` (`longBreak`).
+4. Menos séries que o configurado → `maintain` (`incompleteSession`).
+5. Série com falha técnica, inválida ou sem marcação (quando exigida) → `maintain` (`invalidExecution`).
+6. Alguma série abaixo do mínimo → `maintain` (`belowMinimum`). Nunca reduz.
+7. Topo atingido, mas sem RIR registrado → `maintain` (`rirMissing`); RIR abaixo do alvo (falha muscular = RIR 0) → `maintain` (`effortAboveTarget`).
+8. Topo atingido → `increaseWeight`: carga + incremento, arredondada, faixa recomeçando no mínimo.
+9. Caso contrário → `increaseReps`: mesma carga, buscar mais repetições.
+
+Peso corporal: a carga adicional começa em 0 (sem carga) e sobe pelo incremento.
+
+### Interface
+
+- **Biblioteca → exercício → Progressão:** método, parâmetros, "nova referência", exemplo calculado pela própria estratégia e recomendações anteriores. Exercícios por tempo mostram um aviso e não oferecem estratégia.
+- **Sessão:** linha "Progressão Dupla · 3 × 8–12 · Meta 52,5 kg" e "Topo da faixa: x/3"; campos preenchidos com a meta aceita; botão de detalhes (qualidade e RIR) só quando o exercício tem estratégia (o RIR só aparece se ela usa RIR) ou com "Sempre registrar RIR" ligado (Configurações). Séries de peso corporal ganham campo de carga adicional (`+kg`).
+- **Resumo pós-treino:** cards "Progressão identificada!" etc. com Aceitar · Manter carga atual · Ajustar · Justificativa.
+- **Antes de iniciar um treino:** sugestões ainda pendentes reaparecem; dá para decidir ou iniciar sem decidir (o treino segue como sempre).
+
+### Limitações conhecidas
+
+- A estratégia avalia só a sessão mais recente (suficiente para a Progressão Dupla). As estratégias com "N sessões bem-sucedidas" (Linear) usarão o `state`.
+- A carga adicional de peso corporal, uma vez salva numa série, não pode ser apagada pelo campo (só alterada), porque `updateSet` ignora valores vazios. Isso já era assim para os demais campos.
+- O RPE fica para a Etapa 5.
 
 ## 9. Decisões do proprietário (2026-10-24)
 

@@ -13,15 +13,25 @@ class SettingsState {
   final WeightUnit unit;
   final int defaultRestSeconds;
 
+  /// Mostrar o registro de RIR em todos os exercícios, mesmo sem estratégia
+  /// que use RIR.
+  final bool alwaysRecordRir;
+
   const SettingsState({
     this.unit = WeightUnit.kg,
     this.defaultRestSeconds = 90,
+    this.alwaysRecordRir = false,
   });
 
-  SettingsState copyWith({WeightUnit? unit, int? defaultRestSeconds}) {
+  SettingsState copyWith({
+    WeightUnit? unit,
+    int? defaultRestSeconds,
+    bool? alwaysRecordRir,
+  }) {
     return SettingsState(
       unit: unit ?? this.unit,
       defaultRestSeconds: defaultRestSeconds ?? this.defaultRestSeconds,
+      alwaysRecordRir: alwaysRecordRir ?? this.alwaysRecordRir,
     );
   }
 }
@@ -29,6 +39,7 @@ class SettingsState {
 class SettingsNotifier extends Notifier<SettingsState> {
   static const _unitKey = 'weight_unit';
   static const _restKey = 'default_rest_seconds';
+  static const _alwaysRirKey = 'always_record_rir';
 
   @override
   SettingsState build() {
@@ -38,7 +49,14 @@ class SettingsNotifier extends Notifier<SettingsState> {
     return SettingsState(
       unit: unitStr == 'lbs' ? WeightUnit.lbs : WeightUnit.kg,
       defaultRestSeconds: restSecs,
+      alwaysRecordRir: prefs.getBool(_alwaysRirKey) ?? false,
     );
+  }
+
+  Future<void> setAlwaysRecordRir(bool value) async {
+    final prefs = ref.read(sharedPreferencesProvider);
+    await prefs.setBool(_alwaysRirKey, value);
+    state = state.copyWith(alwaysRecordRir: value);
   }
 
   Future<void> setUnit(WeightUnit unit) async {

@@ -12,6 +12,13 @@ abstract class ProgressionConfig {
   /// qualidade registrada contam como válidas para metas de repetição.
   bool get requireMarkedValid;
 
+  /// Se a estratégia usa RIR: a sessão só pede o RIR quando isso é verdade
+  /// (ou quando o usuário liga "sempre registrar RIR").
+  bool get usesRir => false;
+
+  /// Resumo curto exibido na sessão (ex: "3 × 8–12 · RIR 2").
+  String get summary => '';
+
   Map<String, Object?> toJson();
 }
 

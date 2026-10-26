@@ -286,7 +286,9 @@ class _ExerciseDetailCard extends StatelessWidget {
           : '—',
       SetType.time =>
         s.durationSeconds != null ? '${s.durationSeconds}s' : '—',
-      SetType.bodyweight => s.reps != null ? '× ${s.reps} reps' : '—',
+      SetType.bodyweight => s.reps != null
+          ? '${UnitConverter.extraLoad(s.weightKg, unit)}× ${s.reps} reps'
+          : '—',
     };
   }
 }

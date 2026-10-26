@@ -163,7 +163,9 @@ class ExerciseHistoryScreen extends ConsumerWidget {
           : '—',
       SetType.time =>
         s.durationSeconds != null ? '${s.durationSeconds}s' : '—',
-      SetType.bodyweight => s.reps != null ? '×${s.reps}' : '—',
+      SetType.bodyweight => s.reps != null
+          ? '${UnitConverter.extraLoad(s.weightKg, unit)}×${s.reps}'
+          : '—',
     };
   }
 }

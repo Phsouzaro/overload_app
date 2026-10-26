@@ -90,6 +90,20 @@ class SettingsScreen extends ConsumerWidget {
 
           const SizedBox(height: 32),
 
+          // ── Progressão ───────────────────────────────────────────────
+          _SectionTitle('Progressão'),
+          SwitchListTile(
+            contentPadding: EdgeInsets.zero,
+            title: const Text('Sempre registrar RIR'),
+            subtitle: const Text(
+                'Mostra o RIR (repetições em reserva) em todas as séries, '
+                'mesmo em exercícios sem estratégia que use RIR'),
+            value: settings.alwaysRecordRir,
+            onChanged: notifier.setAlwaysRecordRir,
+          ),
+
+          const SizedBox(height: 32),
+
           // ── Backup ───────────────────────────────────────────────────
           _SectionTitle('Backup'),
           const SizedBox(height: 4),

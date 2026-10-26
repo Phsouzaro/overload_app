@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/constants/muscle_groups.dart';
 import '../../../core/database/app_database.dart';
 import '../../../core/database/tables.dart';
+import '../../progression/screens/progression_config_screen.dart';
 import '../providers/exercise_providers.dart';
 import 'add_exercise_screen.dart';
 import 'exercise_history_screen.dart';
@@ -191,6 +192,14 @@ class _ExerciseCard extends ConsumerWidget {
             ),
           ),
           PopupMenuItem(
+            value: _ExerciseAction.progression,
+            child: ListTile(
+              leading: Icon(Icons.trending_up),
+              title: Text('Progressão'),
+              contentPadding: EdgeInsets.zero,
+            ),
+          ),
+          PopupMenuItem(
             value: _ExerciseAction.edit,
             child: ListTile(
               leading: Icon(Icons.edit_outlined),
@@ -233,6 +242,13 @@ class _ExerciseCard extends ConsumerWidget {
             builder: (_) => ExerciseHistoryScreen(exercise: exercise),
           ),
         );
+      case _ExerciseAction.progression:
+        await Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => ProgressionConfigScreen(exercise: exercise),
+          ),
+        );
       case _ExerciseAction.edit:
         await Navigator.push(
           context,
@@ -271,4 +287,4 @@ class _ExerciseCard extends ConsumerWidget {
   }
 }
 
-enum _ExerciseAction { history, edit, archive }
+enum _ExerciseAction { history, progression, edit, archive }

@@ -7,9 +7,12 @@ import '../../../core/database/repositories/session_repository.dart';
 import '../../../core/database/tables.dart';
 import '../../../core/utils/one_rm_calculator.dart';
 import '../../../core/utils/unit_converter.dart';
+import '../../../core/progression/strategies/double_progression.dart';
+import '../../progression/providers/progression_providers.dart';
 import '../../reports/providers/report_providers.dart';
 import '../../settings/providers/settings_provider.dart';
 import '../providers/session_providers.dart';
+import 'set_details_sheet.dart';
 import 'set_row_widget.dart';
 
 class ExerciseSessionCard extends ConsumerWidget {
@@ -37,8 +40,15 @@ class ExerciseSessionCard extends ConsumerWidget {
     final prWeight = ref
         .watch(exercisePrWeightProvider(exercise.id))
         .valueOrNull;
-    final unit = ref.watch(settingsProvider).unit;
+    final settings = ref.watch(settingsProvider);
+    final unit = settings.unit;
     final repo = ref.read(sessionRepositoryProvider);
+    final configId = item.sessionExercise.progressionConfigId;
+    final setup = configId == null
+        ? null
+        : ref.watch(progressionSetupByIdProvider(configId)).valueOrNull;
+    final askRir = (setup?.config.usesRir ?? false) || settings.alwaysRecordRir;
+    final showDetails = setup != null || settings.alwaysRecordRir;
 
     return Card(
       margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
@@ -172,6 +182,14 @@ class ExerciseSessionCard extends ConsumerWidget {
               },
             ),
 
+            // ── Progressão (meta da sessão) ──────────────────────────────
+            if (setup != null)
+              _ProgressionLine(
+                setup: setup,
+                sets: setsAsync.valueOrNull ?? const [],
+                unit: unit,
+              ),
+
             const Divider(height: 20),
 
             // ── Cabeçalho das colunas ─────────────────────────────────────
@@ -207,20 +225,27 @@ class ExerciseSessionCard extends ConsumerWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     ...sets.asMap().entries.map(
-                          (e) => SetRowWidget(
-                            key: ValueKey(e.value.id),
-                            set: e.value,
+                          (e) {
+                            final s = e.value;
+                            // Meta aceita tem prioridade sobre a sessão
+                            // anterior; reps começam na base da faixa.
+                            final planned = s.targetWeightKg != null ||
+                                s.targetRepsMin != null;
+                            final prev = e.key < prevSets.length
+                                ? prevSets[e.key]
+                                : null;
+                            return SetRowWidget(
+                            key: ValueKey(s.id),
+                            set: s,
                             index: e.key + 1,
                             prWeight: prWeight,
                             unit: unit,
-                            hintWeight: e.key < prevSets.length
-                                ? prevSets[e.key].weightKg
-                                : null,
-                            hintReps: e.key < prevSets.length
-                                ? prevSets[e.key].reps
-                                : null,
-                            hintDuration: e.key < prevSets.length
-                                ? prevSets[e.key].durationSeconds
+                            hintWeight:
+                                planned ? s.targetWeightKg : prev?.weightKg,
+                            hintReps: planned ? s.targetRepsMin : prev?.reps,
+                            hintDuration: prev?.durationSeconds,
+                            onDetails: showDetails
+                                ? () => _editDetails(context, ref, s, askRir)
                                 : null,
                             onConfirm: (weight, reps, duration,
                                 isWarmup, toFailure) async {
@@ -236,7 +261,8 @@ class ExerciseSessionCard extends ConsumerWidget {
                                   restSeconds, exercise.name);
                             },
                             onDelete: () => repo.deleteSet(e.value.id),
-                          ),
+                          );
+                          },
                         ),
                     if (oneRm != null)
                       Padding(
@@ -281,6 +307,26 @@ class ExerciseSessionCard extends ConsumerWidget {
         ),
       ),
     );
+  }
+
+  Future<void> _editDetails(
+    BuildContext context,
+    WidgetRef ref,
+    SessionSet set,
+    bool askRir,
+  ) async {
+    final details = await showSetDetailsSheet(
+      context,
+      rir: set.rir,
+      quality: set.executionQuality,
+      askRir: askRir,
+    );
+    if (details == null) return;
+    await ref.read(sessionRepositoryProvider).updateSetDetails(
+          set.id,
+          rir: details.rir,
+          quality: details.quality,
+        );
   }
 
   Future<void> _confirmRemove(BuildContext context, WidgetRef ref) async {
@@ -336,7 +382,8 @@ class ExerciseSessionCard extends ConsumerWidget {
             ? '${UnitConverter.toDisplay(s.weightKg!, unit).toStringAsFixed(1)}×${s.reps ?? '?'}'
             : '?×${s.reps ?? '?'}',
         SetType.time => '${s.durationSeconds ?? '?'}s',
-        SetType.bodyweight => '×${s.reps ?? '?'}',
+        SetType.bodyweight =>
+          '${UnitConverter.extraLoad(s.weightKg, unit)}×${s.reps ?? '?'}',
       };
 
   void _showHistorySheet(
@@ -351,6 +398,65 @@ class ExerciseSessionCard extends ConsumerWidget {
       builder: (_) => _ExerciseHistorySheet(
         exercise: item.exercise,
         unit: unit,
+      ),
+    );
+  }
+}
+
+/// Linha compacta com a estratégia, a meta aceita e o avanço na faixa.
+class _ProgressionLine extends StatelessWidget {
+  final ProgressionSetup setup;
+  final List<SessionSet> sets;
+  final WeightUnit unit;
+
+  const _ProgressionLine({
+    required this.setup,
+    required this.sets,
+    required this.unit,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final config = setup.config;
+
+    final planned = sets.where((s) => s.targetWeightKg != null).firstOrNull;
+    final parts = <String>[
+      setup.strategy.displayName,
+      if (config.summary.isNotEmpty) config.summary,
+      if (planned != null)
+        'Meta ${UnitConverter.format(planned.targetWeightKg!, unit)}',
+    ];
+
+    // Avanço na faixa: séries de trabalho já confirmadas no topo.
+    String? progress;
+    if (config is DoubleProgressionConfig) {
+      final atTop = sets
+          .where((s) => !s.isWarmup && (s.reps ?? 0) >= config.repsMax)
+          .length;
+      if (sets.any((s) => s.reps != null)) {
+        progress = 'Topo da faixa: ${atTop.clamp(0, config.sets)}/${config.sets}';
+      }
+    }
+
+    return Padding(
+      padding: const EdgeInsets.only(top: 6),
+      child: Row(
+        children: [
+          Icon(Icons.trending_up, size: 14, color: cs.primary),
+          const SizedBox(width: 4),
+          Expanded(
+            child: Text(
+              parts.join(' · '),
+              style: Theme.of(context)
+                  .textTheme
+                  .bodySmall
+                  ?.copyWith(color: cs.primary, fontWeight: FontWeight.w600),
+            ),
+          ),
+          if (progress != null)
+            Text(progress, style: Theme.of(context).textTheme.bodySmall),
+        ],
       ),
     );
   }
@@ -657,6 +763,8 @@ class _SetChip extends StatelessWidget {
         SetType.time =>
           set.durationSeconds != null ? '${set.durationSeconds}s' : null,
         SetType.bodyweight =>
-          set.reps != null ? '× ${set.reps} reps' : null,
+          set.reps != null
+              ? '${UnitConverter.extraLoad(set.weightKg, unit)}× ${set.reps} reps'
+              : null,
       };
 }

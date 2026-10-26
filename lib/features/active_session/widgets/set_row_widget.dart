@@ -20,12 +20,17 @@ class SetRowWidget extends StatefulWidget {
   ) onConfirm;
   final VoidCallback onDelete;
 
+  /// Abre os detalhes da série (qualidade da execução, RIR). `null` esconde
+  /// o botão: só aparece quando a progressão do exercício usa esses dados.
+  final VoidCallback? onDetails;
+
   const SetRowWidget({
     super.key,
     required this.set,
     required this.index,
     required this.onConfirm,
     required this.onDelete,
+    this.onDetails,
     this.prWeight,
     this.hintWeight,
     this.hintReps,
@@ -209,6 +214,17 @@ class _SetRowWidgetState extends State<SetRowWidget> {
                   controller: _durationController, hint: 'seg'),
             ),
           ] else ...[
+            // Peso corporal: carga adicional opcional (colete, anilha).
+            Expanded(
+              child: _NumberField(
+                  controller: _weightController,
+                  hint: '+${UnitConverter.label(widget.unit)}',
+                  decimal: true),
+            ),
+            const Padding(
+              padding: EdgeInsets.symmetric(horizontal: 4),
+              child: Text('×', style: TextStyle(fontWeight: FontWeight.bold)),
+            ),
             Expanded(
               child: _NumberField(
                   controller: _repsController, hint: 'reps'),
@@ -234,6 +250,16 @@ class _SetRowWidgetState extends State<SetRowWidget> {
               activeColor: cs.error,
               tooltip: 'Até a falha',
               onTap: () => setState(() => _toFailure = !_toFailure),
+            ),
+
+          if (widget.onDetails != null)
+            _IconToggle(
+              icon: Icons.tune,
+              active: widget.set.rir != null ||
+                  widget.set.executionQuality != null,
+              activeColor: cs.primary,
+              tooltip: 'Qualidade e RIR',
+              onTap: widget.onDetails!,
             ),
 
           // Confirm

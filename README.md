@@ -30,6 +30,13 @@ Aplicativo Android de gerenciamento de treinos desenvolvido em Flutter. Permite 
 - Saída protegida: encerrar, **continuar depois** ou descartar. Um treino pausado aparece na tela inicial para ser retomado ou descartado
 - Tela de resumo ao encerrar: duração, total de séries e volume total. Séries deixadas em branco são descartadas
 
+### Progressão inteligente
+- Estratégia de progressão opcional por exercício (Biblioteca → exercício → **Progressão**). Disponível: **Progressão Dupla** (sobe as repetições dentro da faixa e depois a carga), com RIR-alvo opcional, critério por todas as séries ou pela série principal, incremento e arredondamento configuráveis
+- Ao encerrar o treino, o resumo mostra a sugestão para a próxima sessão com **Aceitar · Manter carga atual · Ajustar · Justificativa**. Nada muda sem você aceitar
+- Na sessão: meta aceita já preenchida, qualidade da execução (válida / falha técnica / inválida) e RIR por série quando a estratégia usa
+- Séries de peso corporal aceitam carga adicional (colete, anilha)
+- Detalhes técnicos em [docs/PROGRESSAO.md](docs/PROGRESSAO.md)
+
 ### Histórico
 - Lista de sessões finalizadas com duração
 - Detalhe de cada sessão com todas as séries por exercício

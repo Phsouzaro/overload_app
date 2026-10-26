@@ -7,6 +7,8 @@ import '../../active_session/providers/session_providers.dart';
 import '../../active_session/screens/active_session_screen.dart';
 import '../../active_session/widgets/active_session_banner.dart';
 import '../../../core/utils/rest_formatter.dart';
+import '../../progression/providers/progression_providers.dart';
+import '../../progression/widgets/pending_recommendations_sheet.dart';
 import '../providers/workout_providers.dart';
 import 'exercise_picker_screen.dart';
 
@@ -133,6 +135,17 @@ class _WorkoutDetailScreenState extends ConsumerState<WorkoutDetailScreen> {
 
   Future<void> _startSession() async {
     if (!await ensureNoActiveSession(context, ref) || !mounted) return;
+
+    // Sugestões não decididas no resumo do treino anterior reaparecem aqui.
+    final pending = await ref
+        .read(progressionRepositoryProvider)
+        .pendingForExercises(_localList.map((e) => e.exercise.id));
+    if (pending.isNotEmpty) {
+      if (!mounted) return;
+      final start = await showPendingRecommendationsSheet(context, pending);
+      if (start != true || !mounted) return;
+    }
+
     final sessionId = await ref
         .read(sessionRepositoryProvider)
         .startSession(widget.templateId);

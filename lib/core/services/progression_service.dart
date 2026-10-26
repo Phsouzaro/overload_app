@@ -21,14 +21,17 @@ class ProgressionService {
   final ProgressionRepository _repo;
   final ProgressionRegistry _registry;
   final DateTime Function() _clock;
+  final String Function(double kg) _formatLoad;
 
   ProgressionService(
     this._db, {
     ProgressionRegistry? registry,
     DateTime Function()? clock,
+    String Function(double kg)? formatLoad,
   }) : _repo = ProgressionRepository(_db),
        _registry = registry ?? ProgressionRegistry.standard,
-       _clock = clock ?? DateTime.now;
+       _clock = clock ?? DateTime.now,
+       _formatLoad = formatLoad ?? ExerciseContext.formatKg;
 
   /// Avalia a sessão finalizada [sessionId]. Retorna os ids das recomendações
   /// geradas (vazio quando nenhum exercício tem estratégia ativa).
@@ -123,6 +126,7 @@ class ProgressionService {
             ? ExerciseLoadType.bodyweight
             : ExerciseLoadType.weighted,
         incrementKg: config.incrementKg,
+        formatLoad: _formatLoad,
       ),
       history: await _repo.loadHistory(exercise.id, since: config.baselineFrom),
       previousState: await _repo.latestState(exercise.id, config.id),
