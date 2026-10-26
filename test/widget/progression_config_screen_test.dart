@@ -169,4 +169,58 @@ void main() {
     expect(find.byType(FloatingActionButton), findsNothing);
     await unmount(tester);
   });
+
+  group('Progressão Linear', () {
+    testWidgets('mostra parâmetros e o exemplo de estagnação', (tester) async {
+      final ex = await exercise();
+      await open(tester, ex);
+
+      await tester.tap(find.text('Progressão Linear'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Repetições por série'), findsOneWidget);
+      expect(find.text('Falhas seguidas toleradas'), findsOneWidget);
+      final stalled = find.textContaining('3 falha(s) seguida(s)');
+      await tester.scrollUntilVisible(
+        stalled,
+        300,
+        scrollable: find.byType(Scrollable).first,
+      );
+      // Padrão: reduzir 10% de 50 kg → 45 kg, calculado pelo motor.
+      expect(find.text('Próxima: 45.0 kg — 3 × 5'), findsOneWidget);
+      await unmount(tester);
+    });
+
+    testWidgets('salvar grava a Linear com os parâmetros', (tester) async {
+      final ex = await exercise();
+      await open(tester, ex);
+
+      await tester.tap(find.text('Progressão Linear'));
+      await tester.pumpAndSettle();
+      await tester.scrollUntilVisible(
+        find.text('Revisar'),
+        200,
+        scrollable: find.byType(Scrollable).first,
+      );
+      // Centraliza: no rodapé, o "Salvar" flutuante cobre o botão.
+      await Scrollable.ensureVisible(
+        tester.element(find.text('Revisar')),
+        alignment: 0.5,
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Revisar'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Salvar'));
+      await tester.pumpAndSettle();
+
+      final active = await repo.activeConfig(ex.id);
+      expect(active!.strategy, StrategyId.linear);
+      final params = jsonDecode(active.paramsJson) as Map;
+      expect(
+        (params['sets'], params['targetReps'], params['stallPolicy']),
+        (3, 5, 'review'),
+      );
+      await unmount(tester);
+    });
+  });
 }

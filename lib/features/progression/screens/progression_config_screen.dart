@@ -11,6 +11,7 @@ import '../../../core/progression/progression_models.dart';
 import '../../../core/progression/progression_rules.dart';
 import '../../../core/progression/progression_strategy.dart';
 import '../../../core/progression/strategies/double_progression.dart';
+import '../../../core/progression/strategies/linear_progression.dart';
 import '../../../core/utils/unit_converter.dart';
 import '../../settings/providers/settings_provider.dart';
 import '../providers/progression_providers.dart';
@@ -37,6 +38,7 @@ class _ProgressionConfigScreenState
   /// `null` = sem progressão automática.
   StrategyId? _strategy;
   DoubleProgressionConfig _double = const DoubleProgressionConfig();
+  LinearProgressionConfig _linear = const LinearProgressionConfig();
   late final TextEditingController _increment;
   bool _newBaseline = false;
 
@@ -69,10 +71,15 @@ class _ProgressionConfigScreenState
       _loading = false;
       if (active == null) return;
       _strategy = active.strategy;
-      if (active.strategy == StrategyId.doubleProgression) {
-        _double = DoubleProgressionConfig.fromJson(
-          (jsonDecode(active.paramsJson) as Map).cast<String, Object?>(),
-        );
+      final params = (jsonDecode(active.paramsJson) as Map)
+          .cast<String, Object?>();
+      switch (active.strategy) {
+        case StrategyId.doubleProgression:
+          _double = DoubleProgressionConfig.fromJson(params);
+        case StrategyId.linear:
+          _linear = LinearProgressionConfig.fromJson(params);
+        default:
+          break;
       }
       _increment.text = _formatNumber(
         UnitConverter.toDisplay(active.incrementKg, unit),
@@ -92,6 +99,7 @@ class _ProgressionConfigScreenState
 
   ProgressionConfig? get _config => switch (_strategy) {
     StrategyId.doubleProgression => _double,
+    StrategyId.linear => _linear,
     _ => null,
   };
 
@@ -204,13 +212,19 @@ class _ProgressionConfigScreenState
                     ],
                   ),
                 ),
-                if (_strategy == StrategyId.doubleProgression) ...[
+                if (_config != null) ...[
                   const SizedBox(height: 8),
                   _Section('Parâmetros'),
-                  _DoubleProgressionForm(
-                    config: _double,
-                    onChanged: (c) => setState(() => _double = c),
-                  ),
+                  if (_strategy == StrategyId.doubleProgression)
+                    _DoubleProgressionForm(
+                      config: _double,
+                      onChanged: (c) => setState(() => _double = c),
+                    ),
+                  if (_strategy == StrategyId.linear)
+                    _LinearProgressionForm(
+                      config: _linear,
+                      onChanged: (c) => setState(() => _linear = c),
+                    ),
                   _IncrementField(
                     controller: _increment,
                     unit: unit,
@@ -234,7 +248,7 @@ class _ProgressionConfigScreenState
                     _Section('Exemplo'),
                     _Example(
                       strategy: registry.strategyFor(_strategy!)!,
-                      config: _double,
+                      config: _config!,
                       incrementKg: _incrementKg!,
                       bodyweight: _bodyweight,
                       unit: unit,
@@ -259,6 +273,8 @@ class _ProgressionConfigScreenState
   static String _strategyHint(StrategyId id) => switch (id) {
     StrategyId.doubleProgression =>
       'Aumenta as repetições dentro da faixa e depois a carga',
+    StrategyId.linear =>
+      'Meta fixa de repetições; sobe a carga após sessões bem-sucedidas',
     _ => '',
   };
 }
@@ -409,6 +425,125 @@ class _DoubleProgressionForm extends StatelessWidget {
   }
 }
 
+class _LinearProgressionForm extends StatelessWidget {
+  final LinearProgressionConfig config;
+  final ValueChanged<LinearProgressionConfig> onChanged;
+
+  const _LinearProgressionForm({required this.config, required this.onChanged});
+
+  @override
+  Widget build(BuildContext context) {
+    final textTheme = Theme.of(context).textTheme;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _Stepper(
+          label: 'Séries de trabalho',
+          value: config.sets,
+          min: 1,
+          max: 10,
+          onChanged: (v) => onChanged(config.copyWith(sets: v)),
+        ),
+        _Stepper(
+          label: 'Repetições por série',
+          value: config.targetReps,
+          min: 1,
+          max: 50,
+          onChanged: (v) => onChanged(config.copyWith(targetReps: v)),
+        ),
+        _Stepper(
+          label: 'Sessões bem-sucedidas para subir',
+          value: config.successesRequired,
+          min: 1,
+          max: 5,
+          onChanged: (v) => onChanged(config.copyWith(successesRequired: v)),
+        ),
+        _Stepper(
+          label: 'Falhas seguidas toleradas',
+          value: config.failureTolerance,
+          min: 1,
+          max: 10,
+          onChanged: (v) => onChanged(config.copyWith(failureTolerance: v)),
+        ),
+        const SizedBox(height: 8),
+        Text(
+          'Depois das falhas toleradas, sugerir',
+          style: textTheme.bodyLarge,
+        ),
+        const SizedBox(height: 6),
+        SegmentedButton<StallPolicy>(
+          segments: const [
+            ButtonSegment(value: StallPolicy.maintain, label: Text('Manter')),
+            ButtonSegment(value: StallPolicy.review, label: Text('Revisar')),
+            ButtonSegment(value: StallPolicy.reduce, label: Text('Reduzir')),
+          ],
+          selected: {config.stallPolicy},
+          onSelectionChanged: (s) =>
+              onChanged(config.copyWith(stallPolicy: s.first)),
+        ),
+        if (config.stallPolicy == StallPolicy.reduce)
+          _Stepper(
+            label: 'Redução sugerida',
+            value: config.deloadPercent,
+            min: 5,
+            max: 30,
+            format: (v) => '$v%',
+            onChanged: (v) => onChanged(config.copyWith(deloadPercent: v)),
+          ),
+        Text(
+          'Toda redução é só uma sugestão: nada muda sem você aceitar.',
+          style: textTheme.bodySmall?.copyWith(
+            color: Theme.of(context).colorScheme.outline,
+          ),
+        ),
+        const SizedBox(height: 8),
+        Row(
+          children: [
+            Expanded(child: Text('RIR-alvo', style: textTheme.bodyLarge)),
+            DropdownButton<int?>(
+              value: config.targetRir,
+              items: [
+                const DropdownMenuItem(
+                  value: null,
+                  child: Text('Sem RIR-alvo'),
+                ),
+                for (var v = 0; v <= 5; v++)
+                  DropdownMenuItem(value: v, child: Text('RIR $v')),
+              ],
+              onChanged: (v) => onChanged(config.copyWith(targetRir: () => v)),
+            ),
+          ],
+        ),
+        const SizedBox(height: 8),
+        Text('Arredondar carga sugerida', style: textTheme.bodyLarge),
+        const SizedBox(height: 6),
+        SegmentedButton<LoadRounding>(
+          segments: const [
+            ButtonSegment(
+              value: LoadRounding.nearest,
+              label: Text('Mais próximo'),
+            ),
+            ButtonSegment(value: LoadRounding.down, label: Text('Para baixo')),
+            ButtonSegment(value: LoadRounding.up, label: Text('Para cima')),
+          ],
+          selected: {config.rounding},
+          onSelectionChanged: (s) =>
+              onChanged(config.copyWith(rounding: s.first)),
+        ),
+        SwitchListTile(
+          contentPadding: EdgeInsets.zero,
+          value: config.requireMarkedValid,
+          onChanged: (v) => onChanged(config.copyWith(requireMarkedValid: v)),
+          title: const Text('Exigir execução marcada como válida'),
+          subtitle: const Text(
+            'Desligado: séries sem qualidade marcada contam como válidas',
+          ),
+        ),
+      ],
+    );
+  }
+}
+
 class _Stepper extends StatelessWidget {
   final String label;
   final int value;
@@ -524,9 +659,55 @@ class _Example extends StatelessWidget {
     required this.unit,
   });
 
+  /// Cenários: rótulo e sessões (mais recente primeiro) com as reps de cada
+  /// série.
+  List<(String, List<List<int>>)> _scenarios() {
+    List<int> all(int sets, int reps) => [for (var i = 0; i < sets; i++) reps];
+    return switch (config) {
+      final DoubleProgressionConfig c => [
+        ('Dentro da faixa', [all(c.sets, c.repsMin)]),
+        ('Topo da faixa', [all(c.sets, c.repsMax)]),
+      ],
+      final LinearProgressionConfig c => [
+        (
+          'Meta completa',
+          [
+            for (var i = 0; i < c.successesRequired; i++)
+              all(c.sets, c.targetReps),
+          ],
+        ),
+        (
+          'Faltou 1 rep',
+          [
+            [
+              for (var i = 0; i < c.sets; i++)
+                i == c.sets - 1 ? c.targetReps - 1 : c.targetReps,
+            ],
+          ],
+        ),
+        (
+          '${c.failureTolerance} falha(s) seguida(s)',
+          [
+            for (var i = 0; i < c.failureTolerance; i++)
+              [
+                for (var j = 0; j < c.sets; j++)
+                  j == c.sets - 1 ? c.targetReps - 1 : c.targetReps,
+              ],
+          ],
+        ),
+      ],
+      _ => const [],
+    };
+  }
+
+  int? get _targetRir => switch (config) {
+    final DoubleProgressionConfig c => c.targetRir,
+    final LinearProgressionConfig c => c.targetRir,
+    _ => null,
+  };
+
   @override
   Widget build(BuildContext context) {
-    final c = config as DoubleProgressionConfig;
     final load = bodyweight
         ? null
         : UnitConverter.fromDisplay(unit == WeightUnit.lbs ? 100 : 50, unit);
@@ -541,14 +722,9 @@ class _Example extends StatelessWidget {
       formatLoad: (kg) => UnitConverter.format(kg, unit),
     );
 
-    final scenarios = <(String, List<int>)>[
-      ('Dentro da faixa', [for (var i = 0; i < c.sets; i++) c.repsMin]),
-      ('Topo da faixa', [for (var i = 0; i < c.sets; i++) c.repsMax]),
-    ];
-
     return Column(
       children: [
-        for (final (label, reps) in scenarios)
+        for (final (label, sessions) in _scenarios())
           Builder(
             builder: (context) {
               final result = strategy.evaluateWith(
@@ -556,27 +732,31 @@ class _Example extends StatelessWidget {
                 exercise: ctx,
                 now: now,
                 history: [
-                  SessionRecord(
-                    sessionId: 0,
-                    date: now.subtract(const Duration(days: 2)),
-                    sets: [
-                      for (final r in reps)
-                        SetRecord(
-                          weightKg: load,
-                          reps: r,
-                          rir: c.targetRir,
-                          quality: c.requireMarkedValid
-                              ? ExecutionQuality.valid
-                              : null,
-                        ),
-                    ],
-                  ),
+                  for (var i = 0; i < sessions.length; i++)
+                    SessionRecord(
+                      sessionId: i,
+                      date: now.subtract(Duration(days: 2 + 2 * i)),
+                      sets: [
+                        for (final r in sessions[i])
+                          SetRecord(
+                            weightKg: load,
+                            reps: r,
+                            rir: _targetRir,
+                            quality: config.requireMarkedValid
+                                ? ExecutionQuality.valid
+                                : null,
+                          ),
+                      ],
+                    ),
                 ],
               );
+              final repsText = sessions.length == 1
+                  ? sessions.single.join('/')
+                  : '${sessions.length} sessões de ${sessions.first.join('/')}';
               return Card(
                 margin: const EdgeInsets.symmetric(vertical: 4),
                 child: ListTile(
-                  title: Text('$label: ${reps.join('/')}'),
+                  title: Text('$label: $repsText'),
                   subtitle: Text(
                     result.nextTargets.isEmpty
                         ? result.explanation

@@ -8,6 +8,7 @@ import '../../../core/database/tables.dart';
 import '../../../core/utils/one_rm_calculator.dart';
 import '../../../core/utils/unit_converter.dart';
 import '../../../core/progression/strategies/double_progression.dart';
+import '../../../core/progression/strategies/linear_progression.dart';
 import '../../progression/providers/progression_providers.dart';
 import '../../reports/providers/report_providers.dart';
 import '../../settings/providers/settings_provider.dart';
@@ -430,6 +431,12 @@ class _ProgressionLine extends StatelessWidget {
 
     // Avanço na faixa: séries de trabalho já confirmadas no topo.
     String? progress;
+    if (config is LinearProgressionConfig && sets.any((s) => s.reps != null)) {
+      final done = sets
+          .where((s) => !s.isWarmup && (s.reps ?? 0) >= config.targetReps)
+          .length;
+      progress = 'Meta: ${done.clamp(0, config.sets)}/${config.sets}';
+    }
     if (config is DoubleProgressionConfig) {
       final atTop = sets
           .where((s) => !s.isWarmup && (s.reps ?? 0) >= config.repsMax)

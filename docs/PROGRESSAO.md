@@ -1,6 +1,6 @@
 # Progressão Inteligente — Etapa 0: Auditoria e Planejamento
 
-> Status: **Etapa 2 concluída (Progressão Dupla)**; aguardando validação para a Etapa 3.
+> Status: **Etapa 3 concluída (Progressão Linear)**; aguardando validação para a Etapa 4.
 > Base auditada: `master` em `0a9d098` (v1.2.0+3, schema drift v5).
 
 ---
@@ -324,6 +324,48 @@ Peso corporal: a carga adicional começa em 0 (sem carga) e sobe pelo incremento
 - A estratégia avalia só a sessão mais recente (suficiente para a Progressão Dupla). As estratégias com "N sessões bem-sucedidas" (Linear) usarão o `state`.
 - A carga adicional de peso corporal, uma vez salva numa série, não pode ser apagada pelo campo (só alterada), porque `updateSet` ignora valores vazios. Isso já era assim para os demais campos.
 - O RPE fica para a Etapa 5.
+
+## 12. Etapa 3 — Progressão Linear (implementada)
+
+### Verificações compartilhadas (`session_checks.dart`)
+
+As verificações iniciais saíram da Progressão Dupla e agora valem para qualquer estratégia baseada em carga (`SessionChecks.latest`): incremento definido, histórico, séries de trabalho, mesma carga em todas as séries e pausa longa. O mesmo arquivo concentra séries inválidas, verificação de RIR (falha muscular = RIR 0), o aviso de "qualidade não marcada" e a descrição da carga em peso corporal. A Progressão Dupla foi migrada para ele sem mudar comportamento (os 64 testes dela continuam passando).
+
+### Parâmetros (`LinearProgressionConfig`)
+
+| Parâmetro | Padrão | Observação |
+|---|---|---|
+| `sets` / `targetReps` | 3 / 5 | Meta fixa: 1–10 séries, 1–50 reps. |
+| `successesRequired` | 1 | 1–5 sessões bem-sucedidas **seguidas na mesma carga** para subir. |
+| `failureTolerance` | 3 | 1–10 tentativas malsucedidas seguidas antes da política de estagnação. |
+| `stallPolicy` | `reduce` | `maintain` (manter) · `review` (revisão manual) · `reduce` (sugere reduzir). |
+| `deloadPercent` | 10 | 5–30%, só com `reduce`; arredonda **para baixo** ao incremento. |
+| `targetRir` | nenhum | 0–5. |
+| `rounding`, `requireMarkedValid` | — | Iguais aos da Progressão Dupla. |
+
+### Como cada sessão conta
+
+| Resultado | Quando |
+|---|---|
+| **Sucesso** | Todas as séries com a meta de reps, execução válida e, se houver, RIR ≥ alvo. |
+| **Falha** (tentativa malsucedida) | Faltou repetição, falha técnica/execução inválida, ou RIR abaixo do alvo. |
+| **Inconclusiva** (não conta) | Sessão interrompida (séries a menos), cargas diferentes, ou meta atingida sem RIR registrado. |
+
+**Decisão de modelagem:** as sequências de sucesso e falha são **recalculadas a partir do histórico real** a cada avaliação (da mais recente para trás, na carga atual, pulando as inconclusivas), em vez de um contador guardado. Assim a recomendação é reproduzível a partir dos registros e não depende de uma avaliação anterior ter sido gravada. O `state` da recomendação guarda `successStreak`, `failStreak` e `loadKg` apenas para auditoria. Sessões antigas são avaliadas pelos critérios da config atual.
+
+### Decisão
+
+1. Verificações compartilhadas (acima).
+2. Sessão interrompida → `maintain` (`incompleteSession`), sem contar como falha. Meta atingida sem RIR → `maintain` (`rirMissing`).
+3. Sucesso e sequência ≥ `successesRequired` → `increaseWeight` (`successStreakReached`). Senão → `maintain` (`needMoreSuccesses`).
+4. Falha e sequência < `failureTolerance` → `maintain` (`failedAttempt`, "Falha x de N").
+5. Falha e sequência ≥ `failureTolerance` → política: `maintain` (`stalledMaintain`), `manualReview` (`stalledReview`) ou `decreaseWeight` (`stalledReduce`). Sem carga para reduzir (ex: peso corporal sem extra) → `manualReview` (`stalledCannotReduce`).
+
+A redução é **sempre uma sugestão pendente**: só vira meta se o usuário aceitar (regra 7).
+
+### Limitações conhecidas
+
+- RPE como critério de sucesso fica para a Etapa 5 (o prompt lista "RIR/RPE opcional"; nesta etapa só RIR).
 
 ## 9. Decisões do proprietário (2026-10-24)
 

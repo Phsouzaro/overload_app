@@ -2,6 +2,7 @@ import '../progression_enums.dart';
 import '../progression_models.dart';
 import '../progression_rules.dart';
 import '../progression_strategy.dart';
+import '../session_checks.dart';
 
 /// Critério para considerar a meta de repetições atingida.
 enum DoubleProgressionCriterion {
@@ -150,107 +151,30 @@ class DoubleProgressionStrategy
   ProgressionResult evaluate(ProgressionInput<DoubleProgressionConfig> input) {
     final c = input.config;
     final ex = input.exercise;
-    final fmt = ex.formatLoad;
 
-    if (ex.incrementKg <= 0) {
-      return const ProgressionResult(
-        status: RecommendationStatus.manualReview,
-        reasonCode: 'noIncrement',
-        explanation:
-            'Defina o incremento de carga disponível para este '
-            'exercício para receber sugestões.',
-        unmet: [
-          Criterion('incrementAvailable', 'Incremento de carga definido'),
-        ],
-      );
-    }
-    if (input.history.isEmpty) {
-      return const ProgressionResult(
-        status: RecommendationStatus.insufficientData,
-        reasonCode: 'noHistory',
-        explanation: 'Ainda não há sessões registradas deste exercício.',
-      );
-    }
-
-    final latest = input.history.first;
-    final analyzed = [latest.sessionId];
-    final working = ProgressionRules.workingSets(latest);
-    if (working.isEmpty) {
-      return ProgressionResult(
-        status: RecommendationStatus.insufficientData,
-        reasonCode: 'noWorkingSets',
-        explanation:
-            'A última sessão não tem séries de trabalho registradas '
-            '(só aquecimento ou séries vazias).',
-        analyzedSessionIds: analyzed,
-      );
-    }
-
-    final considered = working.take(c.sets).toList();
-    final loads = {for (final s in considered) s.weightKg ?? 0.0};
-
+    SetTarget targetFor(double? weightKg) => SetTarget(
+      weightKg: weightKg,
+      repsMin: c.repsMin,
+      repsMax: c.repsMax,
+      rir: c.targetRir,
+    );
     List<SetTarget> targetsAt(double weightKg) => [
       for (var i = 0; i < c.sets; i++)
-        SetTarget(
-          weightKg: _loadOrNull(weightKg, ex),
-          repsMin: c.repsMin,
-          repsMax: c.repsMax,
-          rir: c.targetRir,
-        ),
+        targetFor(SessionChecks.loadOrNull(weightKg, ex)),
     ];
 
-    if (loads.length > 1) {
-      final described = [for (final s in considered) fmt(s.weightKg ?? 0)];
-      return ProgressionResult(
-        status: RecommendationStatus.manualReview,
-        reasonCode: 'mixedLoads',
-        explanation:
-            'As séries usaram cargas diferentes '
-            '(${described.join(' / ')}). Escolha a carga de trabalho para a '
-            'próxima sessão.',
-        unmet: const [
-          Criterion('sameLoad', 'Mesma carga em todas as séries de trabalho'),
-        ],
-        analyzedSessionIds: analyzed,
-        nextTargets: [
-          for (final s in considered)
-            SetTarget(
-              weightKg: s.weightKg,
-              repsMin: c.repsMin,
-              repsMax: c.repsMax,
-              rir: c.targetRir,
-            ),
-        ],
-      );
-    }
-
-    final load = loads.single;
-    final repsText = considered.map((s) => s.reps ?? 0).join('/');
-    final loadText = _describeLoad(load, ex);
-
-    if (ProgressionRules.isLongBreak(input.history, input.now)) {
-      final days = ProgressionRules.daysSinceLastSession(
-        input.history,
-        input.now,
-      );
-      return ProgressionResult(
-        status: RecommendationStatus.manualReview,
-        reasonCode: 'longBreak',
-        explanation:
-            'Faz $days dias desde a última sessão deste exercício. '
-            'Retome com a carga anterior ($loadText) ou menor, conforme se '
-            'sentir, antes de voltar a progredir.',
-        unmet: const [
-          Criterion(
-            'recentHistory',
-            'Sessão recente (até ${ProgressionRules.longBreakDays} dias)',
-          ),
-        ],
-        currentWeightKg: load,
-        analyzedSessionIds: analyzed,
-        nextTargets: targetsAt(load),
-      );
-    }
+    final check0 = SessionChecks.latest(
+      input,
+      sets: c.sets,
+      targetFor: targetFor,
+    );
+    if (check0.stop != null) return check0.stop!;
+    final checked = check0.session!;
+    final considered = checked.considered;
+    final load = checked.load;
+    final analyzed = [checked.session.sessionId];
+    final repsText = checked.repsText;
+    final loadText = SessionChecks.describeLoad(load, ex);
 
     final met = <Criterion>[];
     final unmet = <Criterion>[];
@@ -266,14 +190,10 @@ class DoubleProgressionStrategy
       ),
     );
 
-    final invalid = [
-      for (final s in considered)
-        if (!ProgressionRules.countsTowardGoal(
-          s,
-          requireMarkedValid: c.requireMarkedValid,
-        ))
-          s,
-    ];
+    final invalid = SessionChecks.invalidSets(
+      considered,
+      requireMarkedValid: c.requireMarkedValid,
+    );
     check(
       invalid.isEmpty,
       Criterion(
@@ -320,26 +240,20 @@ class DoubleProgressionStrategy
     var rirMissing = false;
     var rirOk = true;
     if (c.targetRir != null) {
-      for (final s in goalSets) {
-        final rir = s.toFailure ? 0 : s.rir;
-        if (rir == null) {
-          rirMissing = true;
-        } else if (rir < c.targetRir!) {
-          rirOk = false;
-        }
-      }
+      (missing: rirMissing, ok: rirOk) = SessionChecks.checkRir(
+        goalSets,
+        c.targetRir!,
+      );
       check(
         !rirMissing && rirOk,
         Criterion('targetRir', 'Esforço dentro do RIR-alvo (≥ ${c.targetRir})'),
       );
     }
 
-    final qualityNote =
-        !c.requireMarkedValid &&
-            ProgressionRules.hasUnrecordedQuality(considered)
-        ? ' A qualidade da execução não foi marcada, então as séries foram '
-              'consideradas válidas.'
-        : '';
+    final qualityNote = SessionChecks.qualityNote(
+      considered,
+      requireMarkedValid: c.requireMarkedValid,
+    );
 
     ProgressionResult result(
       RecommendationStatus status,
@@ -415,7 +329,8 @@ class DoubleProgressionStrategy
         'topOfRange',
         'Você concluiu ${c.sets} séries de ${c.repsMax} repetições com '
             '$loadText, dentro dos critérios configurados. Suba para '
-            '${_describeLoad(next, ex)} e recomece em ${c.repsMin} reps.',
+            '${SessionChecks.describeLoad(next, ex)} e recomece em '
+            '${c.repsMin} reps.',
         next,
       );
     }
@@ -427,16 +342,5 @@ class DoubleProgressionStrategy
           'repetições até ${c.repsMax} em todas as séries.',
       load,
     );
-  }
-
-  /// Em peso corporal, carga 0 é "sem carga extra" (`null`).
-  static double? _loadOrNull(double kg, ExerciseContext ex) =>
-      ex.loadType == ExerciseLoadType.bodyweight && kg == 0 ? null : kg;
-
-  static String _describeLoad(double kg, ExerciseContext ex) {
-    if (ex.loadType == ExerciseLoadType.bodyweight) {
-      return kg == 0 ? 'peso corporal' : 'peso corporal + ${ex.formatLoad(kg)}';
-    }
-    return ex.formatLoad(kg);
   }
 }
