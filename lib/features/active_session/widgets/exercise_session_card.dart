@@ -199,25 +199,14 @@ class ExerciseSessionCard extends ConsumerWidget {
             const Divider(height: 20),
 
             // ── Cabeçalho das colunas ─────────────────────────────────────
-            if (exercise.setType == SetType.weight)
-              Padding(
-                padding: const EdgeInsets.only(bottom: 4, left: 30),
-                child: Row(
-                  children: [
-                    const SizedBox(width: 6),
-                    Expanded(
-                        child: Text(UnitConverter.label(unit),
-                            style: Theme.of(context).textTheme.labelSmall,
-                            textAlign: TextAlign.center)),
-                    const SizedBox(width: 24),
-                    Expanded(
-                        child: Text('reps',
-                            style: Theme.of(context).textTheme.labelSmall,
-                            textAlign: TextAlign.center)),
-                    const SizedBox(width: 96),
-                  ],
-                ),
+            Padding(
+              padding: const EdgeInsets.only(bottom: 4),
+              child: SetRowHeader(
+                type: exercise.setType,
+                unit: unit,
+                showDetails: showDetails,
               ),
+            ),
 
             // ── Séries ───────────────────────────────────────────────────
             setsAsync.when(

@@ -295,6 +295,95 @@ class _SetRowWidgetState extends State<SetRowWidget> {
   }
 }
 
+/// Cabeçalho das colunas de [SetRowWidget]: nomeia os campos e os botões
+/// (antes só no toque longo). Repete o layout da linha, então cada rótulo
+/// fica exatamente acima do seu botão.
+class SetRowHeader extends StatelessWidget {
+  final SetType type;
+  final WeightUnit unit;
+
+  /// Mesmo critério do `onDetails` da linha: só com o botão de detalhes.
+  final bool showDetails;
+
+  const SetRowHeader({
+    super.key,
+    required this.type,
+    required this.unit,
+    this.showDetails = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final style = Theme.of(context).textTheme.labelSmall?.copyWith(
+          color: Theme.of(context).colorScheme.outline,
+        );
+
+    Widget field(String text) => Expanded(
+          child: Text(text, style: style, textAlign: TextAlign.center),
+        );
+    // Ocupa o espaço de um botão da linha (invisível), com o nome por cima.
+    Widget button(String? text) => Stack(
+          alignment: Alignment.center,
+          children: [
+            ExcludeSemantics(
+              child: IgnorePointer(
+                child: Opacity(
+                  opacity: 0,
+                  child: _IconToggle(
+                    icon: Icons.circle,
+                    active: false,
+                    activeColor: Colors.transparent,
+                    tooltip: '',
+                    onTap: () {},
+                  ),
+                ),
+              ),
+            ),
+            if (text != null)
+              Positioned.fill(
+                child: Center(
+                  child: FittedBox(
+                    fit: BoxFit.scaleDown,
+                    child: Text(text, style: style, maxLines: 1),
+                  ),
+                ),
+              ),
+          ],
+        );
+    // Espaço invisível do "×", para os campos alinharem.
+    const times = Padding(
+      padding: EdgeInsets.symmetric(horizontal: 4),
+      child: Opacity(
+        opacity: 0,
+        child: Text('×', style: TextStyle(fontWeight: FontWeight.bold)),
+      ),
+    );
+
+    return Row(
+      children: [
+        const SizedBox(width: 30),
+        if (type == SetType.weight) ...[
+          field(UnitConverter.label(unit)),
+          times,
+          field('reps'),
+        ] else if (type == SetType.time)
+          field('seg')
+        else ...[
+          field('+${UnitConverter.label(unit)}'),
+          times,
+          field('reps'),
+        ],
+        const SizedBox(width: 2),
+        button('Aquec.'),
+        if (type != SetType.time) button('Falha'),
+        if (showDetails) button('Detal.'),
+        button('Feita'),
+        button(null), // remover
+      ],
+    );
+  }
+}
+
 class _IconToggle extends StatelessWidget {
   final IconData icon;
   final bool active;
