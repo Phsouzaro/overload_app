@@ -244,14 +244,37 @@ class ProgressionRepository {
   }
 
   /// Estado da estratégia gravado na recomendação mais recente gerada com a
-  /// mesma config (vazio se não houver).
-  Future<Map<String, Object?>> latestState(int exerciseId, int configId) async {
+  /// mesma config (vazio se não houver). Com [beforeSession], só considera
+  /// recomendações anteriores à primeira gerada por aquela sessão.
+  Future<Map<String, Object?>> latestState(
+    int exerciseId,
+    int configId, {
+    int? beforeSession,
+  }) async {
+    // Reavaliar uma sessão parte do estado de antes da primeira avaliação
+    // dela; senão o estado (ex: posição no ciclo de ondas) avançaria duas
+    // vezes pela mesma sessão.
+    final first = beforeSession == null
+        ? null
+        : await (_db.select(_db.progressionRecommendations)
+                ..where(
+                  (r) =>
+                      r.exerciseId.equals(exerciseId) &
+                      r.configId.equals(configId) &
+                      r.sourceSessionId.equals(beforeSession),
+                )
+                ..orderBy([(r) => OrderingTerm.asc(r.id)])
+                ..limit(1))
+              .getSingleOrNull();
     final row =
         await (_db.select(_db.progressionRecommendations)
               ..where(
                 (r) =>
                     r.exerciseId.equals(exerciseId) &
-                    r.configId.equals(configId),
+                    r.configId.equals(configId) &
+                    (first == null
+                        ? const Constant(true)
+                        : r.id.isSmallerThanValue(first.id)),
               )
               ..orderBy([(r) => OrderingTerm.desc(r.id)])
               ..limit(1))

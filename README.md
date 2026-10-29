@@ -37,6 +37,7 @@ Aplicativo Android de gerenciamento de treinos desenvolvido em Flutter. Permite 
   - **Progressão por RIR**: usa o RIR que você informa (nunca estimado) e a faixa de repetições; sobe a carga no topo da faixa com o esforço dentro do alvo ± tolerância
   - **Progressão por RPE**: esforço percebido na escala 6–10 (passos de 0,5) com tolerância; sobe a carga no topo da faixa com o esforço dentro do planejado. RPE e RIR nunca são convertidos um no outro
   - **Série Principal + Back-off**: uma série pesada e séries de redução (percentual da principal, arredondado ao equipamento), cada uma com meta e progressão próprias
+  - **Progressão em Ondas**: ciclo de ondas configuráveis (séries, reps e percentual da carga de referência em cada uma); avança só quando a onda é concluída, repete a onda malsucedida, trata falha técnica como interrupção e sobe a referência ao fim do ciclo
   - Incremento e arredondamento configuráveis; exemplo calculado na própria tela
 - RIR, RPE e qualidade da execução podem ser corrigidos depois do treino (Histórico → sessão → tocar na série), com opção de **Reavaliar** a sugestão
 - Ao encerrar o treino, o resumo mostra a sugestão para a próxima sessão com **Aceitar · Manter carga atual · Ajustar · Justificativa**. Nada muda sem você aceitar

@@ -30,6 +30,7 @@ void main() {
 
   Future<ProgressionRecommendationEntry> recommend({
     RecommendationStatus status = RecommendationStatus.increaseWeight,
+    String reasonCode = 'r',
     List<SetTarget> targets = const [
       SetTarget(weightKg: 52.5, repsMin: 8, repsMax: 12),
       SetTarget(weightKg: 52.5, repsMin: 8, repsMax: 12),
@@ -58,7 +59,7 @@ void main() {
       generatedAt: DateTime(2026, 4, 1),
       result: ProgressionResult(
         status: status,
-        reasonCode: 'r',
+        reasonCode: reasonCode,
         explanation: 'Você concluiu 3 séries de 12 repetições com 50 kg.',
         nextTargets: targets,
         met: const [Criterion('topOfRange', 'Todas as séries com 12 reps')],
@@ -265,6 +266,70 @@ void main() {
     ]);
     // O RPE-alvo da principal não se perde no ajuste.
     expect(targets.first.rpe, 9.0);
+    await unmount(tester);
+  });
+
+  const waveTargets = [
+    SetTarget(role: SetRole.wave, weightKg: 65, repsMin: 5, repsMax: 5),
+    SetTarget(role: SetRole.wave, weightKg: 67.5, repsMin: 3, repsMax: 3),
+    SetTarget(role: SetRole.wave, weightKg: 72.5, repsMin: 1, repsMax: 1),
+  ];
+
+  testWidgets('onda: título do ciclo e cargas na ordem planejada', (
+    tester,
+  ) async {
+    final rec = await recommend(
+      reasonCode: 'waveCompleted',
+      targets: waveTargets,
+    );
+    await pumpWithDb(tester, db, card(rec));
+
+    expect(find.text('Onda concluída!'), findsOneWidget);
+    expect(
+      find.text('65.0 kg × 5  ·  67.5 kg × 3  ·  72.5 kg × 1'),
+      findsOneWidget,
+    );
+    await unmount(tester);
+  });
+
+  testWidgets('onda malsucedida: "Repita a onda"', (tester) async {
+    final rec = await recommend(
+      status: RecommendationStatus.maintain,
+      reasonCode: 'waveFailed',
+      targets: waveTargets,
+    );
+    await pumpWithDb(tester, db, card(rec));
+
+    expect(find.text('Repita a onda'), findsOneWidget);
+    await unmount(tester);
+  });
+
+  testWidgets('Ajustar onda: uma carga por série, ordem mantida', (
+    tester,
+  ) async {
+    final rec = await recommend(targets: waveTargets);
+    await pumpWithDb(tester, db, card(rec));
+
+    await tester.tap(find.text('Ajustar'));
+    await tester.pumpAndSettle();
+    expect(find.text('Onda · série 1'), findsOneWidget);
+    expect(find.text('Onda · série 3'), findsOneWidget);
+
+    await tester.enterText(find.widgetWithText(TextField, 'Carga').at(1), '66');
+    await tester.tap(find.text('Salvar'));
+    await tester.pumpAndSettle();
+
+    final saved = await (db.select(
+      db.progressionRecommendations,
+    )..where((r) => r.id.equals(rec.id))).getSingle();
+    final targets = ProgressionRepository.decodeTargets(
+      saved.finalTargetsJson!,
+    );
+    expect(targets.map((t) => (t.role, t.weightKg, t.repsMin)), [
+      (SetRole.wave, 65.0, 5),
+      (SetRole.wave, 66.0, 3),
+      (SetRole.wave, 72.5, 1),
+    ]);
     await unmount(tester);
   });
 }

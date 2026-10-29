@@ -442,6 +442,12 @@ class _ProgressionLine extends StatelessWidget {
     final plannedBackOff = sets
         .where((s) => s.setRole == SetRole.backOff && s.targetWeightKg != null)
         .firstOrNull;
+    // Onda: cargas planejadas em sequência, da mais leve à mais pesada.
+    final waveLoads = [
+      for (final s in sets)
+        if (s.setRole == SetRole.wave && s.targetWeightKg != null)
+          s.targetWeightKg!,
+    ]..sort();
     final parts = <String>[
       setup.strategy.displayName,
       if (config.summary.isNotEmpty) config.summary,
@@ -449,7 +455,15 @@ class _ProgressionLine extends StatelessWidget {
         'Meta principal ${UnitConverter.format(plannedTop.targetWeightKg!, unit)}',
       if (plannedBackOff != null)
         'back-off ${UnitConverter.format(plannedBackOff.targetWeightKg!, unit)}',
-      if (plannedTop == null && plannedBackOff == null && planned != null)
+      if (waveLoads.isNotEmpty)
+        waveLoads.first == waveLoads.last
+            ? 'Onda ${UnitConverter.format(waveLoads.first, unit)}'
+            : 'Onda ${UnitConverter.format(waveLoads.first, unit)}'
+                  '–${UnitConverter.format(waveLoads.last, unit)}',
+      if (plannedTop == null &&
+          plannedBackOff == null &&
+          waveLoads.isEmpty &&
+          planned != null)
         'Meta ${UnitConverter.format(planned.targetWeightKg!, unit)}',
     ];
 
@@ -472,6 +486,20 @@ class _ProgressionLine extends StatelessWidget {
           .where((s) => !s.isWarmup && (s.reps ?? 0) >= range.top)
           .length;
       progress = 'Topo da faixa: ${atTop.clamp(0, range.sets)}/${range.sets}';
+    }
+    // Onda: séries já feitas com a carga e as reps planejadas.
+    final waveSets = sets.where(
+      (s) => s.setRole == SetRole.wave && s.targetRepsMin != null,
+    );
+    if (waveSets.isNotEmpty && sets.any((s) => s.reps != null)) {
+      final done = waveSets
+          .where(
+            (s) =>
+                (s.reps ?? 0) >= s.targetRepsMin! &&
+                (s.weightKg ?? 0) >= (s.targetWeightKg ?? 0) - 1e-6,
+          )
+          .length;
+      progress = 'Onda: $done/${waveSets.length}';
     }
 
     return Padding(

@@ -48,8 +48,9 @@ void main() {
   );
 
   Future<void> open(WidgetTester tester, Exercise ex) async {
-    // Tela com proporção de celular (a padrão de teste é 800 × 600).
-    tester.view.physicalSize = const Size(420, 900);
+    // Largura de celular (a padrão de teste é 800 × 600), alta o bastante
+    // para a lista de métodos e o início dos parâmetros.
+    tester.view.physicalSize = const Size(420, 1200);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.reset);
     await pumpWithDb(tester, db, launcher(ex));
@@ -304,6 +305,122 @@ void main() {
       expect(active!.strategy, StrategyId.topSetBackOff);
       final params = jsonDecode(active.paramsJson) as Map;
       expect((params['backOffSets'], params['backOffPercent']), (3, 15));
+      await unmount(tester);
+    });
+  });
+
+  group('Progressão em Ondas', () {
+    /// Rola até [finder] e centraliza, longe do botão Salvar flutuante.
+    Future<void> reveal(WidgetTester tester, Finder finder) async {
+      await tester.scrollUntilVisible(
+        finder,
+        200,
+        scrollable: find.byType(Scrollable).first,
+      );
+      Scrollable.ensureVisible(tester.element(finder), alignment: 0.5);
+      await tester.pumpAndSettle();
+    }
+
+    Future<void> choose(WidgetTester tester) async {
+      final option = find.text('Progressão em Ondas');
+      await tester.scrollUntilVisible(
+        option,
+        200,
+        scrollable: find.byType(Scrollable).first,
+      );
+      await tester.tap(option);
+      await tester.pumpAndSettle();
+    }
+
+    testWidgets('mostra as ondas e o exemplo calculado', (tester) async {
+      final ex = await exercise();
+      await open(tester, ex);
+      await choose(tester);
+
+      expect(find.text('Onda 1 · 3×8'), findsOneWidget);
+      expect(find.text('Onda 3 · 3×4'), findsOneWidget);
+      final example = find.textContaining('Onda 1 completa');
+      await tester.scrollUntilVisible(
+        example,
+        300,
+        scrollable: find.byType(Scrollable).first,
+      );
+      // Referência deduzida de 50 kg: 50 / 75% = 66,7 → 67,5. Onda 2 a 80%:
+      // 54 → 55.
+      expect(find.text('Próxima: 55.0 kg — 3 × 6'), findsOneWidget);
+      await unmount(tester);
+    });
+
+    testWidgets('adicionar onda e mudar as reps de uma série', (tester) async {
+      final ex = await exercise();
+      await open(tester, ex);
+      await choose(tester);
+
+      final add = find.text('Adicionar onda');
+      await reveal(tester, add);
+      await tester.tap(add);
+      await tester.pumpAndSettle();
+      expect(find.text('Onda 4 · 3×4'), findsOneWidget);
+
+      // Primeiro "−" de repetições da onda 4.
+      await reveal(tester, find.text('Onda 4 · 3×4'));
+      final wave4 = find.ancestor(
+        of: find.text('Onda 4 · 3×4'),
+        matching: find.byType(Card),
+      );
+      await tester.tap(
+        find.descendant(of: wave4, matching: find.byIcon(Icons.remove)).first,
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('Onda 4 · 3/4/4'), findsOneWidget);
+
+      await tester.tap(find.text('Salvar'));
+      await tester.pumpAndSettle();
+      final active = await repo.activeConfig(ex.id);
+      expect(active!.strategy, StrategyId.waveLoading);
+      final waves = (jsonDecode(active.paramsJson) as Map)['waves'] as List;
+      expect(waves.length, 4);
+      expect([for (final s in waves.last as List) (s as Map)['percent']], [
+        90.0,
+        90.0,
+        90.0,
+      ]);
+      await unmount(tester);
+    });
+
+    testWidgets('carga de referência inválida bloqueia o salvar', (
+      tester,
+    ) async {
+      final ex = await exercise();
+      await open(tester, ex);
+      await choose(tester);
+
+      final field = find.widgetWithText(
+        TextField,
+        'Carga de referência (100%)',
+      );
+      await reveal(tester, field);
+      await tester.enterText(field, 'abc');
+      await tester.pumpAndSettle();
+      final issue = find.textContaining(
+        'a carga de referência deve ser maior que 0',
+      );
+      await reveal(tester, issue);
+      expect(issue, findsOneWidget);
+      // Sem exemplo e com o Salvar desabilitado enquanto houver problema.
+      expect(find.text('Exemplo'), findsNothing);
+      final fab = tester.widget<FloatingActionButton>(
+        find.byType(FloatingActionButton),
+      );
+      expect(fab.onPressed, isNull);
+      await unmount(tester);
+    });
+
+    testWidgets('não aparece para exercício de peso corporal', (tester) async {
+      final ex = await exercise(type: SetType.bodyweight);
+      await open(tester, ex);
+
+      expect(find.text('Progressão em Ondas'), findsNothing);
       await unmount(tester);
     });
   });

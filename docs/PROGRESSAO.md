@@ -1,6 +1,6 @@
 # Progressão Inteligente — Etapa 0: Auditoria e Planejamento
 
-> Status: **Etapa 6 concluída (Série Principal + Back-off)**; aguardando validação para a Etapa 7.
+> Status: **Etapa 7 concluída (Progressão em Ondas)**; aguardando validação para a Etapa 8.
 > Base auditada: `master` em `0a9d098` (v1.2.0+3, schema drift v5).
 
 ---
@@ -474,6 +474,51 @@ Motivos: `topSetUp`, `backOffUp` (meta própria do back-off), `bothUp`, `hold`, 
 - **Sessão:** a série principal aparece como **"P"** no lugar do número, e a linha mostra "Meta principal X · back-off Y".
 - **Sugestão:** metas agrupadas por papel ("Principal: 72.5 kg × 4–6 · Back-off: 3 × 62.5 kg × 8–10").
 - **Ajustar (regra 7):** um grupo de campos por papel. A estrutura é preservada, e o RIR/RPE-alvo de cada papel também. Antes, o ajuste perdia o RPE-alvo; corrigido nesta etapa.
+
+## 16. Etapa 7 — Progressão em Ondas (implementada)
+
+### Modelagem
+
+- **Onda = uma sessão.** O ciclo é a sequência de ondas configuradas; cada onda tem as **próprias séries**, cada uma com repetições e percentual da **carga de referência (100%)**. As ondas não precisam ser iguais (regra 2): número de séries, reps e percentuais variam livremente, inclusive dentro da onda (ex: 85% × 5, 90% × 3, 95% × 1).
+- Cargas = referência × percentual, **arredondadas ao incremento** (`WaveLoadingStrategy.planFor`). As metas saem com `SetRole.wave`, na ordem planejada (regra 6).
+- **Estado do ciclo** em `ProgressionResult.state` (`WaveState`): `cycle`, `wave` (próxima onda), `baseKg`, `failStreak` e `results` — o resultado de cada onda (`completed`, `failed`, `incomplete`, `interrupted`), com ciclo e sessão, limitado aos 12 mais recentes (regra 7). O estado é por versão da config: salvar uma config nova recomeça o ciclo.
+
+### Avaliação da sessão
+
+1. **Sem ciclo em andamento:** `cycleStart`. A referência vem de `baseKg` da config ou é deduzida da carga mais pesada da última sessão, de modo que a onda 1 comece na carga já usada. Sem carga registrada: `noLoad`.
+2. As séries de trabalho (só as de papel `wave`, se houver) são comparadas **série a série, na ordem**, com o plano da onda: carga ≥ planejada, reps ≥ planejadas e execução válida. Um critério por série vai para a justificativa.
+3. Transições:
+   - **Concluída:** avança para a próxima onda (`waveCompleted`); a última fecha o ciclo (`cycleCompleted`), sobe a referência em `cycleIncrements` × incremento e recomeça pela onda 1.
+   - **Malsucedida** (reps ou carga abaixo do planejado, execução inválida): repete a mesma onda com as mesmas metas (`waveFailed`) — **a intensidade nunca sobe depois dela** (regra 5). Ao atingir `failureTolerance` tentativas seguidas: `manualReview` (`waveStalled`).
+   - **Incompleta** (séries a menos): repete, sem contar como falha (`waveIncomplete`).
+   - **Falha técnica** em qualquer série interrompe a sequência (regra 4): repete a onda (`waveInterrupted`) ou recomeça o ciclo com a mesma referência (`cycleRestarted`), conforme `onTechnicalFailure`. Falha muscular (`toFailure`) não é falha técnica.
+4. Validação de cargas (regra 3): percentuais de 30% a 120% em passos de 0,5, reps de 1 a 30, até 6 ondas de até 8 séries; uma onda cuja carga arredondada fique zerada gera `invalidLoads`.
+5. Pausa longa e sessão sem séries de trabalho usam as verificações comuns, **sem perder a posição no ciclo**.
+6. **Reavaliar** uma sessão (Histórico → corrigir série) parte do estado de **antes** da primeira avaliação dela (`ProgressionRepository.latestState(beforeSession:)`), para o ciclo não avançar duas vezes pela mesma sessão. A correção vale para qualquer estratégia que use estado.
+
+### Parâmetros (`WaveLoadingConfig`)
+
+| Parâmetro | Padrão | Observação |
+|---|---|---|
+| `waves` | 3×8 @75% → 3×6 @80% → 3×4 @85% | Lista de ondas; cada série com `reps` e `percent`. |
+| `baseKg` | — | Referência do 1º ciclo; vazio = deduzida da última sessão. |
+| `cycleIncrements` | 1 | Incrementos somados à referência por ciclo (1–5). |
+| `failureTolerance` | 2 | Tentativas seguidas sem concluir a onda antes da revisão (1–5). |
+| `onTechnicalFailure` | `repeatWave` | Ou `restartCycle`. |
+| `rounding`, `requireMarkedValid` | — | Iguais às demais. |
+
+Só carga externa (`supportsLoadType`), como na Etapa 6.
+
+### Interface
+
+- **Configuração:** cada onda num cartão com as séries (− / + de reps e de percentual, em passos de 2,5%), adicionar/remover séries e ondas (a nova onda copia a última, 5% mais pesada). Exemplos calculados pelo motor: onda 1 completa, com 1 rep a menos, com falha técnica, e a última onda completa.
+- **Sessão:** a linha mostra o resumo das ondas, a faixa de cargas da onda ("Onda 60–72.5 kg") e o avanço ("Onda: 2/3").
+- **Sugestão:** títulos próprios ("Início do ciclo de ondas", "Onda concluída!", "Ciclo concluído!", "Repita a onda", "Ciclo reiniciado") e as cargas em sequência ("65.0 kg × 5 · 67.5 kg × 3 · 72.5 kg × 1").
+- **Ajustar:** o diálogo agora agrupa séries **seguidas com a mesma meta** (antes, por papel), então cada carga diferente da onda tem o próprio campo e a ordem é mantida. Principal + back-off continua igual.
+
+### Limitação conhecida
+
+- A sessão é avaliada contra o plano guardado no estado. Se a sugestão foi mantida ou ajustada para cargas menores, a onda não conta como concluída (conservador: a intensidade não sobe sem a onda planejada feita).
 
 ## 9. Decisões do proprietário (2026-10-24)
 

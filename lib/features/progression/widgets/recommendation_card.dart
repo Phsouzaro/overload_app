@@ -79,7 +79,7 @@ class _RecommendationCardState extends ConsumerState<RecommendationCard> {
       _rec.recommendedTargetsJson,
     );
     final bodyweight = widget.exercise.setType == SetType.bodyweight;
-    final (title, icon, color) = _headline(_rec.status, cs);
+    final (title, icon, color) = _headline(_rec.status, _rec.reasonCode, cs);
     final pending = _decision == RecommendationDecision.pending;
 
     return Card(
@@ -179,8 +179,22 @@ class _RecommendationCardState extends ConsumerState<RecommendationCard> {
 
   static (String, IconData, Color) _headline(
     RecommendationStatus status,
+    String reasonCode,
     ColorScheme cs,
   ) {
+    // Progressão em ondas: o avanço no ciclo não é "subir" nem "manter".
+    switch (reasonCode) {
+      case 'cycleStart':
+        return ('Início do ciclo de ondas', Icons.waves, cs.primary);
+      case 'waveCompleted':
+        return ('Onda concluída!', Icons.waves, cs.primary);
+      case 'cycleCompleted':
+        return ('Ciclo concluído!', Icons.trending_up, cs.primary);
+      case 'waveFailed' || 'waveIncomplete' || 'waveInterrupted':
+        return ('Repita a onda', Icons.replay, cs.secondary);
+      case 'cycleRestarted':
+        return ('Ciclo reiniciado', Icons.restart_alt, cs.tertiary);
+    }
     return switch (status) {
       RecommendationStatus.increaseWeight => (
         'Progressão identificada!',
@@ -287,8 +301,8 @@ String describeTargets(
   String role(SetRole r) => switch (r) {
     SetRole.topSet => 'Principal: ',
     SetRole.backOff => 'Back-off: ',
-    SetRole.wave => 'Onda: ',
-    SetRole.work => '',
+    // Ondas: as cargas em sequência já dizem a estrutura.
+    SetRole.wave || SetRole.work => '',
   };
   return [
     for (final (t, n) in groups)
@@ -361,9 +375,10 @@ class _Reasons extends StatelessWidget {
   }
 }
 
-/// Ajuste manual. Séries com o mesmo papel (ex: todo o back-off) recebem a
-/// mesma carga e faixa; papéis diferentes (série principal × back-off) são
-/// ajustados separadamente, preservando a estrutura.
+/// Ajuste manual. Séries seguidas com a mesma meta (ex: todo o back-off)
+/// são ajustadas juntas; metas diferentes (série principal × back-off, as
+/// cargas de uma onda) são ajustadas separadamente, preservando a estrutura
+/// e a ordem planejada.
 class _AdjustDialog extends StatefulWidget {
   final List<SetTarget> targets;
   final WeightUnit unit;
@@ -402,30 +417,40 @@ class _RoleFields {
 }
 
 class _AdjustDialogState extends State<_AdjustDialog> {
-  /// Um grupo de campos por papel, na ordem em que aparecem, preenchido com
-  /// a primeira meta daquele papel.
-  final Map<SetRole, _RoleFields> _fields = {};
+  /// Um grupo de campos por sequência de séries iguais (mesmo papel, carga e
+  /// faixa), na ordem planejada, com quantas séries ele cobre.
+  final List<(_RoleFields, int)> _groups = [];
   String? _error;
 
   @override
   void initState() {
     super.initState();
     for (final t in widget.targets) {
-      _fields.putIfAbsent(t.role, () => _RoleFields(t, widget.unit));
+      final last = _groups.lastOrNull;
+      if (last != null &&
+          last.$1.first.role == t.role &&
+          last.$1.first.weightKg == t.weightKg &&
+          last.$1.first.repsMin == t.repsMin &&
+          last.$1.first.repsMax == t.repsMax) {
+        _groups[_groups.length - 1] = (last.$1, last.$2 + 1);
+      } else {
+        _groups.add((_RoleFields(t, widget.unit), 1));
+      }
     }
   }
 
   @override
   void dispose() {
-    for (final f in _fields.values) {
+    for (final (f, _) in _groups) {
       f.dispose();
     }
     super.dispose();
   }
 
   void _save() {
-    final adjusted = <SetRole, SetTarget>{};
-    for (final MapEntry(key: role, value: f) in _fields.entries) {
+    final adjusted = <SetTarget>[];
+    for (final (f, count) in _groups) {
+      final role = f.first.role;
       final display = double.tryParse(f.weight.text.replaceAll(',', '.'));
       final min = int.tryParse(f.min.text);
       final max = int.tryParse(f.max.text) ?? min;
@@ -436,7 +461,7 @@ class _AdjustDialogState extends State<_AdjustDialog> {
         setState(() => _error = 'Confira as cargas e as faixas de repetições');
         return;
       }
-      adjusted[role] = SetTarget(
+      final target = SetTarget(
         role: role,
         weightKg: display == null || display <= 0
             ? null
@@ -446,8 +471,22 @@ class _AdjustDialogState extends State<_AdjustDialog> {
         rir: f.first.rir,
         rpe: f.first.rpe,
       );
+      adjusted.addAll(List.filled(count, target));
     }
-    Navigator.pop(context, [for (final t in widget.targets) adjusted[t.role]!]);
+    Navigator.pop(context, adjusted);
+  }
+
+  /// "Back-off", ou "Onda · séries 4–6" quando o papel tem vários grupos.
+  String _title(int index) {
+    final role = _groups[index].$1.first.role;
+    final sameRole = _groups.where((g) => g.$1.first.role == role).length;
+    if (sameRole == 1) return _roleTitle(role);
+    var start = 1;
+    for (var i = 0; i < index; i++) {
+      start += _groups[i].$2;
+    }
+    final end = start + _groups[index].$2 - 1;
+    return '${_roleTitle(role)} · ${start == end ? 'série $start' : 'séries $start–$end'}';
   }
 
   static String _roleTitle(SetRole role) => switch (role) {
@@ -460,13 +499,13 @@ class _AdjustDialogState extends State<_AdjustDialog> {
   @override
   Widget build(BuildContext context) {
     final label = UnitConverter.label(widget.unit);
-    final grouped = _fields.length > 1;
+    final grouped = _groups.length > 1;
 
-    Widget group(SetRole role, _RoleFields f) => Column(
+    Widget group(int index, _RoleFields f) => Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         if (grouped) ...[
-          Text(_roleTitle(role), style: Theme.of(context).textTheme.titleSmall),
+          Text(_title(index), style: Theme.of(context).textTheme.titleSmall),
           const SizedBox(height: 8),
         ],
         TextField(
@@ -514,8 +553,8 @@ class _AdjustDialogState extends State<_AdjustDialog> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            for (final MapEntry(key: role, value: f) in _fields.entries) ...[
-              group(role, f),
+            for (var i = 0; i < _groups.length; i++) ...[
+              group(i, _groups[i].$1),
               const SizedBox(height: 16),
             ],
             if (_error != null)

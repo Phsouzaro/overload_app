@@ -86,7 +86,7 @@ class ProgressionService {
     if (strategy == null) return null;
 
     final now = _clock();
-    final result = await _run(strategy, config, exercise, now);
+    final result = await _run(strategy, config, exercise, now, sessionId);
     return _repo.insertRecommendation(
       exerciseId: exerciseId,
       configId: config.id,
@@ -102,6 +102,7 @@ class ProgressionService {
     ProgressionConfigEntry config,
     Exercise exercise,
     DateTime now,
+    int sessionId,
   ) async {
     final params = (jsonDecode(config.paramsJson) as Map)
         .cast<String, Object?>();
@@ -129,7 +130,11 @@ class ProgressionService {
         formatLoad: _formatLoad,
       ),
       history: await _repo.loadHistory(exercise.id, since: config.baselineFrom),
-      previousState: await _repo.latestState(exercise.id, config.id),
+      previousState: await _repo.latestState(
+        exercise.id,
+        config.id,
+        beforeSession: sessionId,
+      ),
       now: now,
     );
   }

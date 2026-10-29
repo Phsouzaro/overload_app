@@ -15,6 +15,7 @@ import '../../../core/progression/strategies/linear_progression.dart';
 import '../../../core/progression/strategies/rir_based_progression.dart';
 import '../../../core/progression/strategies/rpe_based_progression.dart';
 import '../../../core/progression/strategies/top_set_back_off.dart';
+import '../../../core/progression/strategies/wave_loading.dart';
 import '../../active_session/widgets/set_details_sheet.dart'
     show formatRpe, rpeScale;
 import '../../../core/utils/unit_converter.dart';
@@ -47,6 +48,7 @@ class _ProgressionConfigScreenState
   RirBasedConfig _rir = const RirBasedConfig();
   RpeBasedConfig _rpe = const RpeBasedConfig();
   TopSetBackOffConfig _topSet = const TopSetBackOffConfig();
+  WaveLoadingConfig _wave = const WaveLoadingConfig();
   late final TextEditingController _increment;
   bool _newBaseline = false;
 
@@ -92,8 +94,8 @@ class _ProgressionConfigScreenState
           _rpe = RpeBasedConfig.fromJson(params);
         case StrategyId.topSetBackOff:
           _topSet = TopSetBackOffConfig.fromJson(params);
-        default:
-          break;
+        case StrategyId.waveLoading:
+          _wave = WaveLoadingConfig.fromJson(params);
       }
       _increment.text = _formatNumber(
         UnitConverter.toDisplay(active.incrementKg, unit),
@@ -117,7 +119,8 @@ class _ProgressionConfigScreenState
     StrategyId.rirBased => _rir,
     StrategyId.rpeBased => _rpe,
     StrategyId.topSetBackOff => _topSet,
-    _ => null,
+    StrategyId.waveLoading => _wave,
+    null => null,
   };
 
   List<String> get _issues {
@@ -262,6 +265,12 @@ class _ProgressionConfigScreenState
                       config: _topSet,
                       onChanged: (c) => setState(() => _topSet = c),
                     ),
+                  if (_strategy == StrategyId.waveLoading)
+                    _WaveLoadingForm(
+                      config: _wave,
+                      unit: unit,
+                      onChanged: (c) => setState(() => _wave = c),
+                    ),
                   _IncrementField(
                     controller: _increment,
                     unit: unit,
@@ -318,8 +327,293 @@ class _ProgressionConfigScreenState
       'Usa o esforço percebido (RPE 6–10) e a faixa de repetições',
     StrategyId.topSetBackOff =>
       'Uma série pesada e séries de redução, cada uma com sua meta',
-    _ => '',
+    StrategyId.waveLoading =>
+      'Sequência de ondas planejadas; avança só quando a onda é concluída',
   };
+}
+
+/// Ondas editáveis: cada onda tem as próprias séries, com repetições e
+/// percentual da carga de referência, na ordem em que serão feitas.
+class _WaveLoadingForm extends StatefulWidget {
+  final WaveLoadingConfig config;
+  final WeightUnit unit;
+  final ValueChanged<WaveLoadingConfig> onChanged;
+
+  const _WaveLoadingForm({
+    required this.config,
+    required this.unit,
+    required this.onChanged,
+  });
+
+  @override
+  State<_WaveLoadingForm> createState() => _WaveLoadingFormState();
+}
+
+class _WaveLoadingFormState extends State<_WaveLoadingForm> {
+  late final TextEditingController _base = TextEditingController(
+    text: widget.config.baseKg == null
+        ? ''
+        : _ProgressionConfigScreenState._formatNumber(
+            UnitConverter.toDisplay(widget.config.baseKg!, widget.unit),
+          ),
+  );
+
+  WaveLoadingConfig get _c => widget.config;
+
+  @override
+  void dispose() {
+    _base.dispose();
+    super.dispose();
+  }
+
+  void _setWaves(List<List<WaveStep>> waves) =>
+      widget.onChanged(_c.copyWith(waves: waves));
+
+  List<List<WaveStep>> get _copy => [
+    for (final w in _c.waves) [...w],
+  ];
+
+  void _updateStep(int w, int s, {int? reps, double? percent}) {
+    final waves = _copy;
+    final old = waves[w][s];
+    waves[w][s] = WaveStep(
+      reps: reps ?? old.reps,
+      percent: percent ?? old.percent,
+    );
+    _setWaves(waves);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final textTheme = Theme.of(context).textTheme;
+    final outline = Theme.of(context).colorScheme.outline;
+
+    Widget adjust(String text, VoidCallback? minus, VoidCallback? plus) => Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        IconButton(
+          visualDensity: VisualDensity.compact,
+          iconSize: 20,
+          icon: const Icon(Icons.remove),
+          onPressed: minus,
+        ),
+        SizedBox(
+          width: 52,
+          child: Text(
+            text,
+            textAlign: TextAlign.center,
+            style: textTheme.bodyLarge,
+          ),
+        ),
+        IconButton(
+          visualDensity: VisualDensity.compact,
+          iconSize: 20,
+          icon: const Icon(Icons.add),
+          onPressed: plus,
+        ),
+      ],
+    );
+
+    Widget wave(int w) {
+      final steps = _c.waves[w];
+      return Card(
+        margin: const EdgeInsets.symmetric(vertical: 4),
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(12, 4, 4, 4),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      'Onda ${w + 1} · ${WaveLoadingConfig.describeWave(steps)}',
+                      style: textTheme.titleSmall,
+                    ),
+                  ),
+                  if (_c.waves.length > 1)
+                    IconButton(
+                      tooltip: 'Remover onda',
+                      icon: const Icon(Icons.delete_outline),
+                      onPressed: () => _setWaves(_copy..removeAt(w)),
+                    ),
+                ],
+              ),
+              for (var s = 0; s < steps.length; s++)
+                Row(
+                  children: [
+                    SizedBox(
+                      width: 28,
+                      child: Text('${s + 1}', style: textTheme.bodySmall),
+                    ),
+                    adjust(
+                      '${steps[s].reps} reps',
+                      steps[s].reps > 1
+                          ? () => _updateStep(w, s, reps: steps[s].reps - 1)
+                          : null,
+                      steps[s].reps < 30
+                          ? () => _updateStep(w, s, reps: steps[s].reps + 1)
+                          : null,
+                    ),
+                    adjust(
+                      '${formatRpe(steps[s].percent)}%',
+                      steps[s].percent > 30
+                          ? () => _updateStep(
+                              w,
+                              s,
+                              percent: steps[s].percent - 2.5 < 30
+                                  ? 30
+                                  : steps[s].percent - 2.5,
+                            )
+                          : null,
+                      steps[s].percent < 120
+                          ? () => _updateStep(
+                              w,
+                              s,
+                              percent: steps[s].percent + 2.5 > 120
+                                  ? 120
+                                  : steps[s].percent + 2.5,
+                            )
+                          : null,
+                    ),
+                    const Spacer(),
+                    if (steps.length > 1)
+                      IconButton(
+                        visualDensity: VisualDensity.compact,
+                        tooltip: 'Remover série',
+                        icon: const Icon(Icons.close, size: 18),
+                        onPressed: () => _setWaves(_copy..[w].removeAt(s)),
+                      ),
+                  ],
+                ),
+              if (steps.length < 8)
+                TextButton.icon(
+                  onPressed: () => _setWaves(_copy..[w].add(steps.last)),
+                  icon: const Icon(Icons.add, size: 18),
+                  label: const Text('Série'),
+                ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Cada onda é uma sessão. Percentuais sobre a carga de referência '
+          '(100%), arredondados ao incremento.',
+          style: textTheme.bodySmall?.copyWith(color: outline),
+        ),
+        const SizedBox(height: 4),
+        for (var w = 0; w < _c.waves.length; w++) wave(w),
+        if (_c.waves.length < 6)
+          TextButton.icon(
+            // A nova onda parte da última, 5% mais pesada: o usuário ajusta.
+            onPressed: () => _setWaves([
+              ..._copy,
+              [
+                for (final s in _c.waves.last)
+                  WaveStep(
+                    reps: s.reps,
+                    percent: s.percent + 5 > 120 ? 120 : s.percent + 5,
+                  ),
+              ],
+            ]),
+            icon: const Icon(Icons.add),
+            label: const Text('Adicionar onda'),
+          ),
+        const SizedBox(height: 8),
+        TextField(
+          controller: _base,
+          keyboardType: const TextInputType.numberWithOptions(decimal: true),
+          onChanged: (v) {
+            final display = double.tryParse(v.replaceAll(',', '.'));
+            // Texto ilegível vira carga inválida, para a validação acusar
+            // em vez de cair silenciosamente no cálculo automático.
+            widget.onChanged(
+              _c.copyWith(
+                baseKg: () => display == null
+                    ? (v.trim().isEmpty ? null : -1)
+                    : UnitConverter.fromDisplay(display, widget.unit),
+              ),
+            );
+          },
+          decoration: InputDecoration(
+            labelText: 'Carga de referência (100%)',
+            helperText: 'Vazio: calculada pela última sessão',
+            suffixText: UnitConverter.label(widget.unit),
+            border: const OutlineInputBorder(),
+          ),
+        ),
+        const SizedBox(height: 8),
+        _Stepper(
+          label: 'Incrementos por ciclo',
+          value: _c.cycleIncrements,
+          min: 1,
+          max: 5,
+          onChanged: (v) => widget.onChanged(_c.copyWith(cycleIncrements: v)),
+        ),
+        _Stepper(
+          label: 'Tentativas antes de revisar',
+          value: _c.failureTolerance,
+          min: 1,
+          max: 5,
+          onChanged: (v) => widget.onChanged(_c.copyWith(failureTolerance: v)),
+        ),
+        Text('Falha técnica', style: textTheme.bodyLarge),
+        const SizedBox(height: 6),
+        SegmentedButton<TechnicalFailurePolicy>(
+          segments: const [
+            ButtonSegment(
+              value: TechnicalFailurePolicy.repeatWave,
+              label: Text('Repetir a onda'),
+            ),
+            ButtonSegment(
+              value: TechnicalFailurePolicy.restartCycle,
+              label: Text('Recomeçar o ciclo'),
+            ),
+          ],
+          selected: {_c.onTechnicalFailure},
+          onSelectionChanged: (s) =>
+              widget.onChanged(_c.copyWith(onTechnicalFailure: s.first)),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          'Onda concluída avança para a próxima; onda malsucedida é '
+          'repetida. A última onda concluída sobe a referência.',
+          style: textTheme.bodySmall?.copyWith(color: outline),
+        ),
+        const SizedBox(height: 8),
+        Text('Arredondar cargas', style: textTheme.bodyLarge),
+        const SizedBox(height: 6),
+        SegmentedButton<LoadRounding>(
+          segments: const [
+            ButtonSegment(
+              value: LoadRounding.nearest,
+              label: Text('Mais próximo'),
+            ),
+            ButtonSegment(value: LoadRounding.down, label: Text('Para baixo')),
+            ButtonSegment(value: LoadRounding.up, label: Text('Para cima')),
+          ],
+          selected: {_c.rounding},
+          onSelectionChanged: (s) =>
+              widget.onChanged(_c.copyWith(rounding: s.first)),
+        ),
+        SwitchListTile(
+          contentPadding: EdgeInsets.zero,
+          value: _c.requireMarkedValid,
+          onChanged: (v) =>
+              widget.onChanged(_c.copyWith(requireMarkedValid: v)),
+          title: const Text('Exigir execução marcada como válida'),
+          subtitle: const Text(
+            'Desligado: séries sem qualidade marcada contam como válidas',
+          ),
+        ),
+      ],
+    );
+  }
 }
 
 class _TopSetBackOffForm extends StatelessWidget {
@@ -1068,6 +1362,12 @@ class _Scenario {
   final List<SetRole>? roles;
   final List<double>? loads;
 
+  /// Qualidade de cada série (`null` = padrão da config).
+  final List<ExecutionQuality?>? qualities;
+
+  /// Estado anterior da estratégia (ex: posição no ciclo de ondas).
+  final Map<String, Object?> state;
+
   const _Scenario(
     this.label,
     this.sessions, {
@@ -1075,6 +1375,8 @@ class _Scenario {
     this.rpe,
     this.roles,
     this.loads,
+    this.qualities,
+    this.state = const {},
   });
 }
 
@@ -1193,6 +1495,52 @@ class _Example extends StatelessWidget {
             ),
         ];
       }(),
+      final WaveLoadingConfig c => () {
+        // Sessões que seguem o plano do próprio motor (planFor), na onda
+        // indicada pelo estado: nada de regra repetida na interface.
+        final base = c.baseKg ?? WaveLoadingStrategy.inferBase(
+          c,
+          load ?? 0,
+          incrementKg,
+        );
+        _Scenario at(
+          String label,
+          int wave, {
+          bool missLast = false,
+          bool technicalFailure = false,
+        }) {
+          final plan = WaveLoadingStrategy.planFor(c, wave, base, incrementKg);
+          return _Scenario(
+            label,
+            [
+              [
+                for (var i = 0; i < plan.length; i++)
+                  missLast && i == plan.length - 1
+                      ? plan[i].repsMin! - 1
+                      : plan[i].repsMin!,
+              ],
+            ],
+            roles: [for (final _ in plan) SetRole.wave],
+            loads: [for (final t in plan) t.weightKg!],
+            qualities: [
+              for (var i = 0; i < plan.length; i++)
+                technicalFailure && i == 0
+                    ? ExecutionQuality.technicalFailure
+                    : null,
+            ],
+            state: WaveState(cycle: 1, wave: wave, baseKg: base).toJson(),
+          );
+        }
+
+        final last = c.waves.length - 1;
+        return [
+          at('Onda 1 completa', 0),
+          if (c.waves.first.last.reps > 1)
+            at('Onda 1 com 1 rep a menos', 0, missLast: true),
+          at('Onda 1 com falha técnica', 0, technicalFailure: true),
+          if (last > 0) at('Onda ${last + 1} completa', last),
+        ];
+      }(),
       _ => const [],
     };
   }
@@ -1215,7 +1563,16 @@ class _Example extends StatelessWidget {
 
     return Column(
       children: [
-        for (final _Scenario(:label, :sessions, :rir, :rpe, :roles, :loads)
+        for (final _Scenario(
+              :label,
+              :sessions,
+              :rir,
+              :rpe,
+              :roles,
+              :loads,
+              :qualities,
+              :state,
+            )
             in _scenarios(load))
           Builder(
             builder: (context) {
@@ -1223,6 +1580,7 @@ class _Example extends StatelessWidget {
                 config: config,
                 exercise: ctx,
                 now: now,
+                previousState: state,
                 history: [
                   for (var i = 0; i < sessions.length; i++)
                     SessionRecord(
@@ -1236,9 +1594,11 @@ class _Example extends StatelessWidget {
                             role: roles?[j],
                             rir: rir,
                             rpe: rpe,
-                            quality: config.requireMarkedValid
-                                ? ExecutionQuality.valid
-                                : null,
+                            quality:
+                                qualities?[j] ??
+                                (config.requireMarkedValid
+                                    ? ExecutionQuality.valid
+                                    : null),
                           ),
                       ],
                     ),
