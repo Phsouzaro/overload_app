@@ -160,6 +160,9 @@ class _ProgressionConfigScreenState
           jsonEncode(params) == _active!.paramsJson &&
           (increment - _active!.incrementKg).abs() < 1e-6 &&
           !_newBaseline;
+      final hadPending =
+          !unchanged &&
+          await repo.pendingRecommendation(widget.exercise.id) != null;
       if (!unchanged) {
         await repo.saveConfig(
           exerciseId: widget.exercise.id,
@@ -171,7 +174,14 @@ class _ProgressionConfigScreenState
         );
       }
       if (mounted) {
-        _snack(unchanged ? 'Nada mudou' : 'Estratégia salva');
+        _snack(
+          unchanged
+              ? 'Nada mudou'
+              : hadPending
+              ? 'Estratégia salva. A sugestão pendente da configuração '
+                    'anterior foi descartada.'
+              : 'Estratégia salva',
+        );
         Navigator.pop(context);
       }
     } finally {
@@ -1636,6 +1646,8 @@ class _History extends ConsumerWidget {
     final recs = ref
         .watch(exerciseRecommendationsProvider(exercise.id))
         .valueOrNull;
+    final registry = ref.watch(progressionRegistryProvider);
+    final cs = Theme.of(context).colorScheme;
     if (recs == null) return const SizedBox.shrink();
     if (recs.isEmpty) {
       return Text(
@@ -1645,12 +1657,18 @@ class _History extends ConsumerWidget {
     }
     return Column(
       children: [
-        for (final r in recs)
+        // Mesmo título e ícone do card de sugestão.
+        for (final (r, (title, icon, color)) in [
+          for (final r in recs)
+            (r, recommendationHeadline(r.status, r.reasonCode, cs)),
+        ])
           ExpansionTile(
             tilePadding: EdgeInsets.zero,
-            title: Text(_statusLabel(r.status)),
+            leading: Icon(icon, color: color),
+            title: Text(title),
             subtitle: Text(
               '${DateFormat('dd/MM/yyyy').format(r.generatedAt)} · '
+              '${registry.strategyFor(r.strategy)?.displayName ?? r.strategy.name} · '
               '${_decisionLabel(r.decision)}',
             ),
             childrenPadding: const EdgeInsets.only(bottom: 12),
@@ -1660,16 +1678,6 @@ class _History extends ConsumerWidget {
       ],
     );
   }
-
-  static String _statusLabel(RecommendationStatus s) => switch (s) {
-    RecommendationStatus.increaseWeight => 'Subir carga',
-    RecommendationStatus.increaseReps => 'Mais repetições',
-    RecommendationStatus.maintain => 'Manter carga',
-    RecommendationStatus.decreaseWeight => 'Reduzir carga',
-    RecommendationStatus.deloadSuggested => 'Deload',
-    RecommendationStatus.insufficientData => 'Dados insuficientes',
-    RecommendationStatus.manualReview => 'Revisão manual',
-  };
 
   static String _decisionLabel(RecommendationDecision d) => switch (d) {
     RecommendationDecision.pending => 'Pendente',

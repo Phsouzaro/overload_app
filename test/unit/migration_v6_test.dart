@@ -9,31 +9,7 @@ import 'package:overload/core/database/tables.dart';
 import 'package:overload/core/progression/progression_enums.dart';
 import 'package:path/path.dart' as p;
 
-/// Volta um banco v6 para o formato v5: sem as tabelas de progressão e sem
-/// as colunas novas de `session_sets` e `session_exercises`.
-Future<void> _downgradeToV5(AppDatabase db) async {
-  await db.customStatement('PRAGMA foreign_keys = OFF');
-  await db.customStatement('DROP TABLE progression_recommendations');
-  await db.customStatement('DROP TABLE progression_configs');
-  for (final (table, columns) in [
-    (
-      'session_exercises',
-      'id, session_id, exercise_id, position, rest_seconds, is_extra',
-    ),
-    (
-      'session_sets',
-      'id, session_exercise_id, set_type, weight_kg, reps, duration_seconds, '
-          'is_warmup, to_failure, position',
-    ),
-  ]) {
-    await db.customStatement(
-      'CREATE TABLE ${table}_v5 AS SELECT $columns FROM $table',
-    );
-    await db.customStatement('DROP TABLE $table');
-    await db.customStatement('ALTER TABLE ${table}_v5 RENAME TO $table');
-  }
-  await db.customStatement('PRAGMA user_version = 5');
-}
+import '../helpers/legacy_db.dart';
 
 void main() {
   late Directory tmp;
@@ -101,7 +77,7 @@ void main() {
             toFailure: const Value(true),
           ),
         );
-    await _downgradeToV5(old);
+    await downgradeTo(old, 5);
     await old.close();
 
     // ── App atualizado abre o banco: roda a migration 5 → 6 ──

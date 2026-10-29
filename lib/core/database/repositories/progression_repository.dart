@@ -48,7 +48,8 @@ class ProgressionRepository {
 
   /// Salva uma nova versão da config do exercício. A versão anterior é
   /// encerrada (nunca editada), preservando o vínculo das recomendações
-  /// antigas.
+  /// antigas. A pendente da versão anterior deixa de valer: aceitá-la não
+  /// mudaria nada, porque metas só se aplicam com a config vigente.
   Future<int> saveConfig({
     required int exerciseId,
     required StrategyId strategy,
@@ -59,6 +60,7 @@ class ProgressionRepository {
   }) {
     return _db.transaction(() async {
       await _supersedeActive(exerciseId, now);
+      await _supersedePending(exerciseId);
       return _db
           .into(_db.progressionConfigs)
           .insert(
@@ -352,17 +354,31 @@ class ProgressionRepository {
     }
 
     final rows = await query.get();
+    // Séries de todas as sessões numa consulta só (em vez de uma por sessão).
+    final setsBySe = <int, List<SessionSet>>{};
+    if (rows.isNotEmpty) {
+      final allSets =
+          await (_db.select(_db.sessionSets)
+                ..where(
+                  (s) =>
+                      s.sessionExerciseId.isIn([
+                        for (final row in rows)
+                          row.readTable(_db.sessionExercises).id,
+                      ]) &
+                      isFilledSet(s),
+                )
+                ..orderBy([(s) => OrderingTerm.asc(s.position)]))
+              .get();
+      for (final s in allSets) {
+        (setsBySe[s.sessionExerciseId] ??= []).add(s);
+      }
+    }
+
     final records = <SessionRecord>[];
     for (final row in rows) {
       final session = row.readTable(_db.sessions);
       final se = row.readTable(_db.sessionExercises);
-      final sets =
-          await (_db.select(_db.sessionSets)
-                ..where(
-                  (s) => s.sessionExerciseId.equals(se.id) & isFilledSet(s),
-                )
-                ..orderBy([(s) => OrderingTerm.asc(s.position)]))
-              .get();
+      final sets = setsBySe[se.id] ?? const <SessionSet>[];
       if (sets.isEmpty) continue;
 
       records.add(

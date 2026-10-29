@@ -1,9 +1,111 @@
-# Progressão Inteligente — Etapa 0: Auditoria e Planejamento
+# Progressão Inteligente — Documento técnico
 
-> Status: **Etapa 7 concluída (Progressão em Ondas)**; aguardando validação para a Etapa 8.
-> Base auditada: `master` em `0a9d098` (v1.2.0+3, schema drift v5).
+> Status: **Etapa 8 concluída (refinamento e integração final)**. Todas as etapas do plano (0–8) estão implementadas.
+>
+> **Parte I** (este início) descreve o mecanismo como ele é hoje. **Parte II** guarda o planejamento da Etapa 0 e o registro de cada etapa. Onde o planejamento diverge do código (ex: nomes como `SetEvaluator` e `ExerciseHistory`, que não existem), vale a Parte I.
 
 ---
+
+# Parte I — Guia técnico
+
+## A. Visão geral
+
+O Overload **recomenda** progressões; nunca muda carga ou meta sozinho. Cada exercício pode ter uma estratégia (ou nenhuma: "Sem progressão automática"). Ao encerrar o treino, o motor avalia o histórico real do exercício e grava uma sugestão **pendente**, com justificativa e critérios. Só quando o usuário **aceita** ou **ajusta**, as metas entram nas séries do treino seguinte, uma única vez.
+
+```
+lib/core/progression/           Motor: Dart puro, sem Flutter, banco ou relógio
+  progression_strategy.dart       Contrato ProgressionStrategy<C>, ProgressionConfig, ProgressionInput
+  progression_models.dart         SetRecord, SessionRecord, ExerciseContext, SetTarget, Criterion, ProgressionResult
+  progression_enums.dart          StrategyId, RecommendationStatus/Decision, ExecutionQuality, SetRole
+  progression_rules.dart          Séries de trabalho, qualidade que comprova meta, arredondamento, pausa longa
+  session_checks.dart             Verificações comuns (basics, longBreak, latest/mixedLoads, RIR, aviso de qualidade)
+  progression_registry.dart       ProgressionRegistry.standard
+  strategies/                     Uma classe por estratégia (config + estratégia)
+lib/core/database/repositories/progression_repository.dart   Configs versionadas, recomendações, decisões, histórico
+lib/core/services/progression_service.dart                   Liga o motor ao app (ao encerrar a sessão / reavaliar)
+lib/features/progression/                                    Tela de configuração, card de sugestão, providers
+```
+
+## B. Estratégias disponíveis
+
+| Estratégia (`StrategyId`) | Ideia | Estado entre sessões | Peso corporal | Seção |
+|---|---|---|---|---|
+| Progressão Dupla (`doubleProgression`) | Reps sobem na faixa; no topo, sobe a carga | — | Sim (carga adicional) | 11 |
+| Progressão Linear (`linear`) | Meta fixa; sobe após N sessões bem-sucedidas; política de estagnação | Sequências (calculadas do histórico) | Sim | 12 |
+| Por RIR (`rirBased`) | Topo da faixa + RIR registrado dentro do alvo ± tolerância | — | Sim | 13 |
+| Por RPE (`rpeBased`) | Topo da faixa + RPE 6–10 dentro do alvo ± tolerância | — | Sim | 14 |
+| Série Principal + Back-off (`topSetBackOff`) | Duas trilhas: principal e back-off (percentual da principal) | — | Não | 15 |
+| Progressão em Ondas (`waveLoading`) | Ciclo de ondas, uma por sessão; avança só com a onda concluída | Posição no ciclo (`WaveState`) | Não | 16 |
+
+Todas: incremento por exercício (digitado na unidade do usuário, guardado em kg), arredondamento (`nearest`/`down`/`up`), opção "exigir execução marcada como válida", e as verificações comuns de `SessionChecks` (sem incremento → revisão; sem histórico/séries → dados insuficientes; pausa > 21 dias → revisão).
+
+## C. Fluxo de uma recomendação
+
+1. **Configurar:** Biblioteca → exercício → *Estratégia de Progressão*. Salvar cria uma **versão nova** da config (a anterior ganha `supersededAt`, nunca é editada) e descarta a sugestão pendente da versão anterior (o app avisa).
+2. **Iniciar o treino:** cada `SessionExercise` grava a config vigente (`progressionConfigId`). Se houver sugestão aceita/ajustada ainda não usada **da config vigente**, as metas viram `target*` (e `setRole`) nas séries pré-criadas; a sessão guarda `recommendationId`, então a meta é usada uma vez só.
+3. **Encerrar:** `ProgressionService.evaluateFinishedSession` avalia cada exercício com config ativa (exercícios por tempo e marcados "não avaliar" ficam fora). Entrada: config validada, `ExerciseContext`, histórico (`loadHistory`, a partir da "nova referência"), estado anterior e o relógio injetado. Saída gravada como `pending`; a pendente anterior do exercício vira `superseded`.
+4. **Decidir:** card com Aceitar · Manter carga atual · Ajustar · Justificativa, no resumo e de novo antes do próximo treino. Decisões são definitivas; recomendações nunca são reescritas.
+5. **Reavaliar** (Histórico → corrigir RIR/RPE/qualidade): gera uma sugestão nova, partindo do estado de **antes** daquela sessão.
+
+Erro numa estratégia é registrado no log e não impede o encerramento nem os demais exercícios.
+
+## D. Integração com o histórico
+
+- Só sessões **finalizadas**; séries vazias e aquecimento não contam; falha muscular (`toFailure`) ≠ falha técnica (`ExecutionQuality.technicalFailure`).
+- Séries sem qualidade registrada contam como válidas (sinalizado na justificativa), a menos que a config exija marcação.
+- Histórico antigo (sem RIR/RPE/qualidade/papel) é lido normalmente: estratégias que precisam desses dados devolvem `insufficientData` ou mantêm a carga, nunca chutam.
+- "Nova referência" (`baselineFrom`) isola o histórico após troca de equipamento ou retorno de pausa.
+- Cada recomendação guarda estratégia, `configId`, sessões analisadas, critérios, metas sugeridas e finais (auditoria).
+
+## E. Decisões de modelagem
+
+- **Config por exercício**, versionada e imutável; parâmetros em JSON (`paramsJson`), cada estratégia com sua classe de config. Configurações padrão por usuário foram avaliadas e **não** implementadas: o único padrão global hoje é o incremento inicial (2,5 kg / 5 lb pela unidade). Um "modelo padrão" poderia ser acrescentado sem mudar o banco (preferência + preenchimento inicial da tela).
+- **Estado da estratégia** no próprio registro da recomendação (`strategyStateJson`), por versão de config: trocar parâmetros recomeça ciclos.
+- **Papéis de série** (`SetRole`: `topSet`, `backOff`, `wave`) vêm das metas aceitas. Sem papéis (histórico ou registro manual), cada estratégia tem um fallback conservador (ex: principal = maior carga) ou pede revisão.
+- **Sem índices extras no banco:** ver G.
+
+## F. Como adicionar uma estratégia
+
+1. Acrescentar o valor em `StrategyId` (gravado pelo nome: nunca renomear).
+2. Criar `strategies/minha_estrategia.dart` com:
+   - a config (`extends ProgressionConfig`): campos, `toJson`/`fromJson`, `summary` (linha da sessão), `usesRir`/`usesRpe` (o que a sessão pede ao usuário);
+   - a estratégia (`extends ProgressionStrategy<MinhaConfig>`): `id`, `displayName`, `validate`, `evaluate` (pura e determinística) e, se não servir para peso corporal, `supportsLoadType`.
+3. No `evaluate`, reaproveitar `SessionChecks` (`basics`, `longBreak` ou `latest`) e `ProgressionRules` em vez de reescrever regras. Se usar estado, preserve-o nas saídas antecipadas (ver `WaveLoadingStrategy._keep`).
+4. Registrar em `ProgressionRegistry.standard`.
+5. Interface: um formulário em `progression_config_screen.dart` (estado, `_load`, `_config`, `_strategyHint`) e cenários em `_Example._scenarios`, calculados pela própria estratégia. Títulos específicos de `reasonCode`, se precisar, em `recommendationHeadline`.
+6. Testes: unitários com `SessionRecord` em memória (config válida/inválida, meta atingida/não, falha técnica, sem histórico, sem incremento, troca de config, abaixo do mínimo, sessão interrompida, dados opcionais ausentes, determinismo, parametrizados de carga/faixa/incremento) e um fluxo pelo `ProgressionService` com banco em memória.
+
+## G. Performance
+
+Medida num banco simulado de ~5 anos (1.000 sessões × 6 exercícios × 4 séries = 24 mil séries), no PC: avaliar uma sessão inteira leva ~20 ms; iniciar um treino com metas, ~19 ms; `loadHistory`, ~3 ms. A Etapa 8 tirou o N+1 de `loadHistory` (uma consulta por sessão → uma consulta para todas as séries). Índices em `session_sets(session_exercise_id)` e afins reduziriam para ~13 ms, ganho pequeno demais para justificar uma migration v7 (que também impediria restaurar backups novos em apps antigos). Fica registrado como opção se o volume crescer.
+
+## H. Compatibilidade
+
+- Migrations só aditivas; v6 criou as tabelas de progressão e colunas anuláveis/com padrão neutro.
+- Backups das versões 3, 4 e 5 restauram pelo fluxo real (`BackupService.restore`), migram para v6 e já aceitam progressão sobre o histórico antigo (teste `legacy_backup_restore_test.dart`).
+- Backup de versão mais nova que o app é recusado com mensagem.
+
+## I. Exemplos de uso
+
+- **Supino, Progressão Dupla 3 × 8–12, +2,5 kg:** 50 kg × 12/12/12 → "Progressão identificada! Próxima: 52,5 kg — 3 × 8–12". 50 kg × 12/11/10 → "Busque mais repetições".
+- **Terra, Principal + Back-off 1 × 4–6 + 3 × 6–8 (−15%):** 70 kg × 6, back-off 60 kg × 8/8/8 → principal 72,5 kg, back-off 62,5 kg (72,5 × 0,85 = 61,6 → 62,5).
+- **Agachamento, Ondas 3×8 @75% → 3×6 @80% → 3×4 @85%:** última sessão com 60 kg → referência 80 kg; onda 1 = 60 kg × 8; concluída → onda 2 = 65 kg × 6; uma rep a menos → "Repita a onda"; onda 3 concluída → referência 82,5 kg e novo ciclo.
+
+## J. Limitações conhecidas
+
+- Exercícios **unilaterais** e **equipamento** não são modelados (decisão 6); "nova referência" cobre a troca de equipamento.
+- Exercícios **por tempo** ficam fora da progressão automática (decisão 5).
+- Estratégias de faixa avaliam só a sessão mais recente; a Linear olha sequências no histórico.
+- Trocar de estratégia não converte o histórico: a nova estratégia lê as sessões como foram feitas. Estruturas diferentes (ex: principal + back-off lidas pela Dupla) caem em `mixedLoads` e pedem revisão, de propósito.
+- Ondas: a sessão é comparada ao plano guardado no estado; mantida ou ajustada para menos, a onda não conta como concluída.
+- RPE é percepção: não há média entre sessões nem conversão RPE ↔ RIR.
+- A carga adicional de peso corporal, uma vez salva numa série, só pode ser alterada (não apagada) pelo campo.
+
+---
+
+# Parte II — Planejamento (Etapa 0) e registro das etapas
+
+> Base auditada na Etapa 0: `master` em `0a9d098` (v1.2.0+3, schema drift v5).
 
 ## 1. Resumo da arquitetura encontrada
 
@@ -519,6 +621,30 @@ Só carga externa (`supportsLoadType`), como na Etapa 6.
 ### Limitação conhecida
 
 - A sessão é avaliada contra o plano guardado no estado. Se a sugestão foi mantida ou ajustada para cargas menores, a onda não conta como concluída (conservador: a intensidade não sobe sem a onda planejada feita).
+
+## 17. Etapa 8 — Refinamento e integração final (implementada)
+
+### Troca de estratégia (inclusive no meio de um ciclo)
+
+- **Corrigido:** salvar uma config nova deixava a sugestão pendente da versão anterior aberta. Aceitá-la mostrava "vale para o próximo treino", mas as metas eram ignoradas (só valem com a config vigente). Agora `saveConfig` marca essa pendente como `superseded`, e a tela avisa "A sugestão pendente da configuração anterior foi descartada". A recomendação antiga continua no histórico, intacta.
+- **Corrigido:** Série Principal + Back-off travava em `topSetNotIdentified` quando a última sessão tinha papéis de outra estrutura (ex: séries de onda). Agora só os papéis `topSet`/`backOff` são usados; os demais caem no fallback pela maior carga.
+- Comportamento conferido em `strategy_switch_test.dart`: dupla → linear, dupla → principal + back-off (meta aceita antiga não vale), ondas → principal + back-off, principal + back-off → dupla (revisão por `mixedLoads`), dupla → ondas (ciclo do zero), ondas → ondas com outros parâmetros (estado não vaza), desativar no meio do ciclo.
+
+### UX e consistência visual
+
+- O histórico da tela de configuração usa o **mesmo título e ícone** do card de sugestão (`recommendationHeadline`, antes duplicado com rótulos diferentes, como "Manter carga" para "Início do ciclo de ondas") e passa a mostrar a **estratégia** que gerou cada sugestão.
+
+### Performance
+
+- `loadHistory` sem N+1 (ver Parte I, G). Medição registrada; índices avaliados e não adotados.
+
+### Compatibilidade e migrações
+
+- Revisadas as migrations v1→v6: todas aditivas. Novo teste restaura backups v3, v4 e v5 pelo `BackupService`, migra e gera sugestão sobre o histórico antigo. O rebaixamento de versão usado nos testes virou helper (`test/helpers/legacy_db.dart`), compartilhado com o teste de migração.
+
+### Documentação
+
+- Parte I deste arquivo: guia técnico atual (arquitetura, estratégias, fluxo, histórico, decisões, como adicionar estratégia, performance, compatibilidade, exemplos, limitações).
 
 ## 9. Decisões do proprietário (2026-10-24)
 

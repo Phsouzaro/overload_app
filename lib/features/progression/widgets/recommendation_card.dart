@@ -79,7 +79,11 @@ class _RecommendationCardState extends ConsumerState<RecommendationCard> {
       _rec.recommendedTargetsJson,
     );
     final bodyweight = widget.exercise.setType == SetType.bodyweight;
-    final (title, icon, color) = _headline(_rec.status, _rec.reasonCode, cs);
+    final (title, icon, color) = recommendationHeadline(
+      _rec.status,
+      _rec.reasonCode,
+      cs,
+    );
     final pending = _decision == RecommendationDecision.pending;
 
     return Card(
@@ -177,63 +181,6 @@ class _RecommendationCardState extends ConsumerState<RecommendationCard> {
     );
   }
 
-  static (String, IconData, Color) _headline(
-    RecommendationStatus status,
-    String reasonCode,
-    ColorScheme cs,
-  ) {
-    // Progressão em ondas: o avanço no ciclo não é "subir" nem "manter".
-    switch (reasonCode) {
-      case 'cycleStart':
-        return ('Início do ciclo de ondas', Icons.waves, cs.primary);
-      case 'waveCompleted':
-        return ('Onda concluída!', Icons.waves, cs.primary);
-      case 'cycleCompleted':
-        return ('Ciclo concluído!', Icons.trending_up, cs.primary);
-      case 'waveFailed' || 'waveIncomplete' || 'waveInterrupted':
-        return ('Repita a onda', Icons.replay, cs.secondary);
-      case 'cycleRestarted':
-        return ('Ciclo reiniciado', Icons.restart_alt, cs.tertiary);
-    }
-    return switch (status) {
-      RecommendationStatus.increaseWeight => (
-        'Progressão identificada!',
-        Icons.trending_up,
-        cs.primary,
-      ),
-      RecommendationStatus.increaseReps => (
-        'Busque mais repetições',
-        Icons.add_task,
-        cs.primary,
-      ),
-      RecommendationStatus.maintain => (
-        'Mantenha a carga',
-        Icons.pause_circle_outline,
-        cs.secondary,
-      ),
-      RecommendationStatus.decreaseWeight => (
-        'Redução de carga sugerida',
-        Icons.trending_down,
-        cs.tertiary,
-      ),
-      RecommendationStatus.deloadSuggested => (
-        'Deload sugerido',
-        Icons.battery_charging_full,
-        cs.tertiary,
-      ),
-      RecommendationStatus.insufficientData => (
-        'Dados insuficientes',
-        Icons.info_outline,
-        cs.outline,
-      ),
-      RecommendationStatus.manualReview => (
-        'Revisão necessária',
-        Icons.rate_review_outlined,
-        cs.tertiary,
-      ),
-    };
-  }
-
   static String _decisionLabel(RecommendationDecision d) => switch (d) {
     RecommendationDecision.accepted =>
       'Sugestão aceita: vale para o próximo treino.',
@@ -245,6 +192,64 @@ class _RecommendationCardState extends ConsumerState<RecommendationCard> {
     RecommendationDecision.superseded =>
       'Substituída por uma sugestão mais recente.',
     RecommendationDecision.pending => '',
+  };
+}
+
+/// Título, ícone e cor de uma recomendação: usados no card e no histórico.
+(String, IconData, Color) recommendationHeadline(
+  RecommendationStatus status,
+  String reasonCode,
+  ColorScheme cs,
+) {
+  // Progressão em ondas: o avanço no ciclo não é "subir" nem "manter".
+  switch (reasonCode) {
+    case 'cycleStart':
+      return ('Início do ciclo de ondas', Icons.waves, cs.primary);
+    case 'waveCompleted':
+      return ('Onda concluída!', Icons.waves, cs.primary);
+    case 'cycleCompleted':
+      return ('Ciclo concluído!', Icons.trending_up, cs.primary);
+    case 'waveFailed' || 'waveIncomplete' || 'waveInterrupted':
+      return ('Repita a onda', Icons.replay, cs.secondary);
+    case 'cycleRestarted':
+      return ('Ciclo reiniciado', Icons.restart_alt, cs.tertiary);
+  }
+  return switch (status) {
+    RecommendationStatus.increaseWeight => (
+      'Progressão identificada!',
+      Icons.trending_up,
+      cs.primary,
+    ),
+    RecommendationStatus.increaseReps => (
+      'Busque mais repetições',
+      Icons.add_task,
+      cs.primary,
+    ),
+    RecommendationStatus.maintain => (
+      'Mantenha a carga',
+      Icons.pause_circle_outline,
+      cs.secondary,
+    ),
+    RecommendationStatus.decreaseWeight => (
+      'Redução de carga sugerida',
+      Icons.trending_down,
+      cs.tertiary,
+    ),
+    RecommendationStatus.deloadSuggested => (
+      'Deload sugerido',
+      Icons.battery_charging_full,
+      cs.tertiary,
+    ),
+    RecommendationStatus.insufficientData => (
+      'Dados insuficientes',
+      Icons.info_outline,
+      cs.outline,
+    ),
+    RecommendationStatus.manualReview => (
+      'Revisão necessária',
+      Icons.rate_review_outlined,
+      cs.tertiary,
+    ),
   };
 }
 

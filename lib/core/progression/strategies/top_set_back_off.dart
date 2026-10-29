@@ -435,13 +435,16 @@ class TopSetBackOffStrategy extends ProgressionStrategy<TopSetBackOffConfig> {
   }
 
   /// Separa a série principal do back-off. Usa o papel marcado nas séries
-  /// (metas aceitas); sem papéis, a principal é a primeira série com a maior
+  /// (metas aceitas); sem esses papéis (ou com papéis de outra estrutura,
+  /// após trocar de estratégia), a principal é a primeira série com a maior
   /// carga e o back-off são as séries mais leves. Todas com a mesma carga e
   /// sem papel: não dá para identificar (`null`).
   static ({SetRecord top, List<SetRecord> backOffs})? _split(
     List<SetRecord> working,
   ) {
-    if (working.any((s) => s.role != null)) {
+    if (working.any(
+      (s) => s.role == SetRole.topSet || s.role == SetRole.backOff,
+    )) {
       final top = working.where((s) => s.role == SetRole.topSet).firstOrNull;
       if (top == null) return null;
       return (

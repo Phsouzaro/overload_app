@@ -43,7 +43,8 @@ Aplicativo Android de gerenciamento de treinos desenvolvido em Flutter. Permite 
 - Ao encerrar o treino, o resumo mostra a sugestão para a próxima sessão com **Aceitar · Manter carga atual · Ajustar · Justificativa**. Nada muda sem você aceitar
 - Na sessão: meta aceita já preenchida, qualidade da execução (válida / falha técnica / inválida) e RIR por série quando a estratégia usa
 - Séries de peso corporal aceitam carga adicional (colete, anilha)
-- Detalhes técnicos em [docs/PROGRESSAO.md](docs/PROGRESSAO.md)
+- Trocar de estratégia a qualquer momento: a configuração anterior e as sugestões antigas ficam no histórico do exercício, com a estratégia que as gerou
+- Documento técnico (arquitetura, estratégias, parâmetros, como criar uma estratégia) em [docs/PROGRESSAO.md](docs/PROGRESSAO.md)
 
 ### Histórico
 - Lista de sessões finalizadas com duração

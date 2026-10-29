@@ -7,6 +7,8 @@ import 'package:overload/core/database/app_database.dart';
 import 'package:overload/core/database/repositories/progression_repository.dart';
 import 'package:overload/core/database/tables.dart';
 import 'package:overload/core/progression/progression_enums.dart';
+import 'package:overload/core/progression/progression_models.dart';
+import 'package:overload/core/progression/strategies/wave_loading.dart';
 import 'package:overload/features/progression/screens/progression_config_screen.dart';
 
 import '../helpers/progression_fixtures.dart';
@@ -305,6 +307,85 @@ void main() {
       expect(active!.strategy, StrategyId.topSetBackOff);
       final params = jsonDecode(active.paramsJson) as Map;
       expect((params['backOffSets'], params['backOffPercent']), (3, 15));
+      await unmount(tester);
+    });
+  });
+
+  group('recomendações anteriores e troca de estratégia', () {
+    Future<int> pendingFor(Exercise ex, int configId, StrategyId s) async {
+      final tplId = await insertTemplate(db);
+      final sessionId = await insertWorkout(
+        db,
+        templateId: tplId,
+        exerciseId: ex.id,
+        date: DateTime(2026, 4, 1),
+      );
+      return repo.insertRecommendation(
+        exerciseId: ex.id,
+        configId: configId,
+        strategy: s,
+        sourceSessionId: sessionId,
+        generatedAt: DateTime(2026, 4, 1),
+        result: const ProgressionResult(
+          status: RecommendationStatus.maintain,
+          reasonCode: 'cycleStart',
+          explanation: 'Início do ciclo.',
+        ),
+      );
+    }
+
+    testWidgets('histórico mostra o título do card e a estratégia', (
+      tester,
+    ) async {
+      final ex = await exercise();
+      final configId = await repo.saveConfig(
+        exerciseId: ex.id,
+        strategy: StrategyId.waveLoading,
+        params: const WaveLoadingConfig().toJson(),
+        incrementKg: 2.5,
+        now: DateTime(2026, 3, 1),
+      );
+      await pendingFor(ex, configId, StrategyId.waveLoading);
+      await open(tester, ex);
+
+      final title = find.text('Início do ciclo de ondas');
+      await tester.scrollUntilVisible(
+        title,
+        300,
+        scrollable: find.byType(Scrollable).first,
+      );
+      expect(title, findsOneWidget);
+      expect(
+        find.text('01/04/2026 · Progressão em Ondas · Pendente'),
+        findsOneWidget,
+      );
+      await unmount(tester);
+    });
+
+    testWidgets('trocar a estratégia avisa que a pendente foi descartada', (
+      tester,
+    ) async {
+      final ex = await exercise();
+      final configId = await repo.saveConfig(
+        exerciseId: ex.id,
+        strategy: StrategyId.doubleProgression,
+        params: const {'sets': 3, 'repsMin': 8, 'repsMax': 12},
+        incrementKg: 2.5,
+        now: DateTime(2026, 3, 1),
+      );
+      await pendingFor(ex, configId, StrategyId.doubleProgression);
+      await open(tester, ex);
+
+      await tester.tap(find.text('Progressão Linear'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Salvar'));
+      await tester.pumpAndSettle();
+
+      expect(
+        find.textContaining('sugestão pendente da configuração anterior'),
+        findsOneWidget,
+      );
+      expect(await repo.pendingRecommendation(ex.id), isNull);
       await unmount(tester);
     });
   });
