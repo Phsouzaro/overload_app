@@ -14,6 +14,7 @@ import '../../../core/progression/strategies/double_progression.dart';
 import '../../../core/progression/strategies/linear_progression.dart';
 import '../../../core/progression/strategies/rir_based_progression.dart';
 import '../../../core/progression/strategies/rpe_based_progression.dart';
+import '../../../core/progression/strategies/top_set_back_off.dart';
 import '../../active_session/widgets/set_details_sheet.dart'
     show formatRpe, rpeScale;
 import '../../../core/utils/unit_converter.dart';
@@ -45,6 +46,7 @@ class _ProgressionConfigScreenState
   LinearProgressionConfig _linear = const LinearProgressionConfig();
   RirBasedConfig _rir = const RirBasedConfig();
   RpeBasedConfig _rpe = const RpeBasedConfig();
+  TopSetBackOffConfig _topSet = const TopSetBackOffConfig();
   late final TextEditingController _increment;
   bool _newBaseline = false;
 
@@ -88,6 +90,8 @@ class _ProgressionConfigScreenState
           _rir = RirBasedConfig.fromJson(params);
         case StrategyId.rpeBased:
           _rpe = RpeBasedConfig.fromJson(params);
+        case StrategyId.topSetBackOff:
+          _topSet = TopSetBackOffConfig.fromJson(params);
         default:
           break;
       }
@@ -112,6 +116,7 @@ class _ProgressionConfigScreenState
     StrategyId.linear => _linear,
     StrategyId.rirBased => _rir,
     StrategyId.rpeBased => _rpe,
+    StrategyId.topSetBackOff => _topSet,
     _ => null,
   };
 
@@ -215,12 +220,17 @@ class _ProgressionConfigScreenState
                         subtitle: Text('Registro manual, como sempre'),
                       ),
                       for (final s in registry.all)
-                        RadioListTile<StrategyId?>(
-                          contentPadding: EdgeInsets.zero,
-                          value: s.id,
-                          title: Text(s.displayName),
-                          subtitle: Text(_strategyHint(s.id)),
-                        ),
+                        if (s.supportsLoadType(
+                          _bodyweight
+                              ? ExerciseLoadType.bodyweight
+                              : ExerciseLoadType.weighted,
+                        ))
+                          RadioListTile<StrategyId?>(
+                            contentPadding: EdgeInsets.zero,
+                            value: s.id,
+                            title: Text(s.displayName),
+                            subtitle: Text(_strategyHint(s.id)),
+                          ),
                     ],
                   ),
                 ),
@@ -246,6 +256,11 @@ class _ProgressionConfigScreenState
                     _RpeBasedForm(
                       config: _rpe,
                       onChanged: (c) => setState(() => _rpe = c),
+                    ),
+                  if (_strategy == StrategyId.topSetBackOff)
+                    _TopSetBackOffForm(
+                      config: _topSet,
+                      onChanged: (c) => setState(() => _topSet = c),
                     ),
                   _IncrementField(
                     controller: _increment,
@@ -301,8 +316,147 @@ class _ProgressionConfigScreenState
       'Usa o RIR que você informa e a faixa de repetições para subir a carga',
     StrategyId.rpeBased =>
       'Usa o esforço percebido (RPE 6–10) e a faixa de repetições',
+    StrategyId.topSetBackOff =>
+      'Uma série pesada e séries de redução, cada uma com sua meta',
     _ => '',
   };
+}
+
+class _TopSetBackOffForm extends StatelessWidget {
+  final TopSetBackOffConfig config;
+  final ValueChanged<TopSetBackOffConfig> onChanged;
+
+  const _TopSetBackOffForm({required this.config, required this.onChanged});
+
+  @override
+  Widget build(BuildContext context) {
+    final textTheme = Theme.of(context).textTheme;
+    final outline = Theme.of(context).colorScheme.outline;
+
+    Widget range(
+      String label,
+      int min,
+      int max,
+      int limit,
+      void Function(int min, int max) onRange,
+    ) => Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text('$label: $min–$max', style: textTheme.bodyLarge),
+        RangeSlider(
+          values: RangeValues(min.toDouble(), max.toDouble()),
+          min: 1,
+          max: limit.toDouble(),
+          divisions: limit - 1,
+          labels: RangeLabels('$min', '$max'),
+          onChanged: (r) => onRange(r.start.round(), r.end.round()),
+        ),
+      ],
+    );
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text('Série principal', style: textTheme.titleSmall),
+        range(
+          'Repetições',
+          config.topRepsMin,
+          config.topRepsMax,
+          20,
+          (a, b) => onChanged(config.copyWith(topRepsMin: a, topRepsMax: b)),
+        ),
+        Row(
+          children: [
+            Expanded(child: Text('RIR-alvo', style: textTheme.bodyLarge)),
+            DropdownButton<int?>(
+              value: config.topTargetRir,
+              items: [
+                const DropdownMenuItem(value: null, child: Text('Sem RIR')),
+                for (var v = 0; v <= 5; v++)
+                  DropdownMenuItem(value: v, child: Text('RIR $v')),
+              ],
+              onChanged: (v) =>
+                  onChanged(config.copyWith(topTargetRir: () => v)),
+            ),
+          ],
+        ),
+        Row(
+          children: [
+            Expanded(child: Text('RPE máximo', style: textTheme.bodyLarge)),
+            DropdownButton<double?>(
+              value: config.topTargetRpe,
+              items: [
+                const DropdownMenuItem(value: null, child: Text('Sem RPE')),
+                for (final v in rpeScale)
+                  DropdownMenuItem(
+                    value: v,
+                    child: Text('RPE ${formatRpe(v)}'),
+                  ),
+              ],
+              onChanged: (v) =>
+                  onChanged(config.copyWith(topTargetRpe: () => v)),
+            ),
+          ],
+        ),
+        const SizedBox(height: 12),
+        Text('Back-off', style: textTheme.titleSmall),
+        _Stepper(
+          label: 'Séries de back-off',
+          value: config.backOffSets,
+          min: 1,
+          max: 6,
+          onChanged: (v) => onChanged(config.copyWith(backOffSets: v)),
+        ),
+        _Stepper(
+          label: 'Redução da carga',
+          value: config.backOffPercent,
+          min: 5,
+          max: 40,
+          format: (v) => '−$v%',
+          onChanged: (v) => onChanged(config.copyWith(backOffPercent: v)),
+        ),
+        range(
+          'Repetições',
+          config.backOffRepsMin,
+          config.backOffRepsMax,
+          30,
+          (a, b) =>
+              onChanged(config.copyWith(backOffRepsMin: a, backOffRepsMax: b)),
+        ),
+        Text(
+          'O back-off é calculado sobre a carga da série principal e '
+          'arredondado ao incremento. Cada parte sobe pela própria meta; '
+          'a redução planejada não conta como regressão.',
+          style: textTheme.bodySmall?.copyWith(color: outline),
+        ),
+        const SizedBox(height: 8),
+        Text('Arredondar cargas', style: textTheme.bodyLarge),
+        const SizedBox(height: 6),
+        SegmentedButton<LoadRounding>(
+          segments: const [
+            ButtonSegment(
+              value: LoadRounding.nearest,
+              label: Text('Mais próximo'),
+            ),
+            ButtonSegment(value: LoadRounding.down, label: Text('Para baixo')),
+            ButtonSegment(value: LoadRounding.up, label: Text('Para cima')),
+          ],
+          selected: {config.rounding},
+          onSelectionChanged: (s) =>
+              onChanged(config.copyWith(rounding: s.first)),
+        ),
+        SwitchListTile(
+          contentPadding: EdgeInsets.zero,
+          value: config.requireMarkedValid,
+          onChanged: (v) => onChanged(config.copyWith(requireMarkedValid: v)),
+          title: const Text('Exigir execução marcada como válida'),
+          subtitle: const Text(
+            'Desligado: séries sem qualidade marcada contam como válidas',
+          ),
+        ),
+      ],
+    );
+  }
 }
 
 class _RpeBasedForm extends StatelessWidget {
@@ -909,7 +1063,19 @@ class _Scenario {
   final int? rir;
   final double? rpe;
 
-  const _Scenario(this.label, this.sessions, {this.rir, this.rpe});
+  /// Papel e carga de cada série, quando a estrutura não é "todas iguais"
+  /// (ex: série principal + back-off). `null` = papel nenhum, carga base.
+  final List<SetRole>? roles;
+  final List<double>? loads;
+
+  const _Scenario(
+    this.label,
+    this.sessions, {
+    this.rir,
+    this.rpe,
+    this.roles,
+    this.loads,
+  });
 }
 
 /// Exemplo calculado pela própria estratégia com sessões fictícias: mostra o
@@ -931,7 +1097,7 @@ class _Example extends StatelessWidget {
 
   /// Cenários: rótulo, sessões (mais recente primeiro) com as reps de cada
   /// série, e o RIR/RPE registrados nelas (`null` = não registrado).
-  List<_Scenario> _scenarios() {
+  List<_Scenario> _scenarios(double? load) {
     List<int> all(int sets, int reps) => [for (var i = 0; i < sets; i++) reps];
     List<int> missOne(int sets, int reps) => [
       for (var i = 0; i < sets; i++) i == sets - 1 ? reps - 1 : reps,
@@ -981,6 +1147,52 @@ class _Example extends StatelessWidget {
           ),
         _Scenario('Topo sem RPE registrado', [all(c.sets, c.repsMax)]),
       ],
+      final TopSetBackOffConfig c => () {
+        final top = load ?? 0;
+        // Simula o back-off que o usuário teria feito: o próprio percentual,
+        // arredondado ao incremento (função do motor, não regra nova).
+        final backOff = ProgressionRules.roundToIncrement(
+          top * (1 - c.backOffPercent / 100),
+          incrementKg,
+          mode: c.rounding,
+        );
+        final roles = [
+          SetRole.topSet,
+          for (var i = 0; i < c.backOffSets; i++) SetRole.backOff,
+        ];
+        final loads = [top, for (var i = 0; i < c.backOffSets; i++) backOff];
+        List<int> reps(int topReps, int backOffReps) => [
+          topReps,
+          for (var i = 0; i < c.backOffSets; i++) backOffReps,
+        ];
+        return [
+          _Scenario(
+            'Principal no topo',
+            [reps(c.topRepsMax, c.backOffRepsMin)],
+            rir: c.topTargetRir,
+            rpe: c.topTargetRpe,
+            roles: roles,
+            loads: loads,
+          ),
+          _Scenario(
+            'Back-off no topo',
+            [reps(c.topRepsMin, c.backOffRepsMax)],
+            rir: c.topTargetRir,
+            rpe: c.topTargetRpe,
+            roles: roles,
+            loads: loads,
+          ),
+          if (c.backOffRepsMin > 1)
+            _Scenario(
+              'Back-off abaixo do mínimo',
+              [reps(c.topRepsMax, c.backOffRepsMin - 1)],
+              rir: c.topTargetRir,
+              rpe: c.topTargetRpe,
+              roles: roles,
+              loads: loads,
+            ),
+        ];
+      }(),
       _ => const [],
     };
   }
@@ -1003,7 +1215,8 @@ class _Example extends StatelessWidget {
 
     return Column(
       children: [
-        for (final _Scenario(:label, :sessions, :rir, :rpe) in _scenarios())
+        for (final _Scenario(:label, :sessions, :rir, :rpe, :roles, :loads)
+            in _scenarios(load))
           Builder(
             builder: (context) {
               final result = strategy.evaluateWith(
@@ -1016,10 +1229,11 @@ class _Example extends StatelessWidget {
                       sessionId: i,
                       date: now.subtract(Duration(days: 2 + 2 * i)),
                       sets: [
-                        for (final r in sessions[i])
+                        for (var j = 0; j < sessions[i].length; j++)
                           SetRecord(
-                            weightKg: load,
-                            reps: r,
+                            weightKg: loads?[j] ?? load,
+                            reps: sessions[i][j],
+                            role: roles?[j],
                             rir: rir,
                             rpe: rpe,
                             quality: config.requireMarkedValid

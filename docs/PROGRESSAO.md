@@ -1,6 +1,6 @@
 # Progressão Inteligente — Etapa 0: Auditoria e Planejamento
 
-> Status: **Etapa 5 concluída (Progressão por RPE)**; aguardando validação para a Etapa 6.
+> Status: **Etapa 6 concluída (Série Principal + Back-off)**; aguardando validação para a Etapa 7.
 > Base auditada: `master` em `0a9d098` (v1.2.0+3, schema drift v5).
 
 ---
@@ -434,6 +434,46 @@ Espelho da Progressão por RIR com a escala invertida (RPE alto = esforço alto)
 ### Limitação conhecida
 
 - O RPE é tratado como percepção (não medida objetiva) pela tolerância e pela exigência de repetições; não há média entre sessões.
+
+## 15. Etapa 6 — Série Principal + Back-off (implementada)
+
+### Modelagem
+
+Conforme a observação do prompt, Top Set + Back-off é tratado como **estrutura** com **duas políticas de progressão independentes**, ambas no formato da Progressão Dupla:
+
+- **Série principal** (`SetRole.topSet`): faixa própria; sobe pelo incremento quando chega ao topo com execução válida e, se configurado, RIR ≥ alvo e/ou RPE ≤ alvo.
+- **Back-off** (`SetRole.backOff`): carga = principal × (1 − percentual), **arredondada ao incremento do equipamento**. Ele:
+  - acompanha a principal quando ela sobe (se o back-off foi cumprido);
+  - sobe sozinho quando todas as séries chegam ao topo da faixa dele;
+  - **nunca sobe** se ficar abaixo do mínimo, tiver execução comprometida ou séries a menos.
+- Pela regra 6, a redução planejada **não** passa pela verificação de "cargas diferentes" das outras estratégias. Para isso, `SessionChecks` foi dividido em `basics()` e `longBreak()`, que a estratégia reaproveita sem o `mixedLoads`.
+
+### Identificação da série principal (regra 1)
+
+1. Com papéis gravados nas séries (metas aceitas): usa `setRole`.
+2. Sem papéis (primeira sessão, registro manual): a principal é a primeira série com a **maior carga** e o back-off são as mais leves.
+3. Sem papéis e todas com a mesma carga: `manualReview` (`topSetNotIdentified`), sem chutar.
+
+Só faz sentido com carga externa: `ProgressionStrategy.supportsLoadType` foi adicionado ao contrato, e a tela não oferece a estratégia para exercícios de peso corporal.
+
+### Parâmetros (`TopSetBackOffConfig`)
+
+| Parâmetro | Padrão | Observação |
+|---|---|---|
+| `topRepsMin` / `topRepsMax` | 4 / 6 | Faixa da principal (até 20). |
+| `topTargetRir` / `topTargetRpe` | — | Opcionais, só para a principal. |
+| `backOffSets` | 3 | 1–6. |
+| `backOffPercent` | 15 | 5–40%. |
+| `backOffRepsMin` / `backOffRepsMax` | 6 / 8 | Faixa do back-off (até 30). |
+| `rounding`, `requireMarkedValid` | — | Iguais às demais. |
+
+Motivos: `topSetUp`, `backOffUp` (meta própria do back-off), `bothUp`, `hold`, `withinRange`, além dos compartilhados.
+
+### Interface
+
+- **Sessão:** a série principal aparece como **"P"** no lugar do número, e a linha mostra "Meta principal X · back-off Y".
+- **Sugestão:** metas agrupadas por papel ("Principal: 72.5 kg × 4–6 · Back-off: 3 × 62.5 kg × 8–10").
+- **Ajustar (regra 7):** um grupo de campos por papel. A estrutura é preservada, e o RIR/RPE-alvo de cada papel também. Antes, o ajuste perdia o RPE-alvo; corrigido nesta etapa.
 
 ## 9. Decisões do proprietário (2026-10-24)
 

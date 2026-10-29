@@ -10,6 +10,7 @@ import '../../../core/utils/unit_converter.dart';
 import '../../../core/progression/strategies/double_progression.dart';
 import '../../../core/progression/strategies/linear_progression.dart';
 import '../../../core/progression/strategies/rir_based_progression.dart';
+import '../../../core/progression/progression_enums.dart';
 import '../../../core/progression/strategies/rpe_based_progression.dart';
 import '../../progression/providers/progression_providers.dart';
 import '../../reports/providers/report_providers.dart';
@@ -243,6 +244,9 @@ class ExerciseSessionCard extends ConsumerWidget {
                             key: ValueKey(s.id),
                             set: s,
                             index: e.key + 1,
+                            indexLabel: s.setRole == SetRole.topSet
+                                ? 'P'
+                                : null,
                             prWeight: prWeight,
                             unit: unit,
                             hintWeight:
@@ -431,10 +435,21 @@ class _ProgressionLine extends StatelessWidget {
     final config = setup.config;
 
     final planned = sets.where((s) => s.targetWeightKg != null).firstOrNull;
+    // Estrutura com papéis (principal + back-off): uma meta por papel.
+    final plannedTop = sets
+        .where((s) => s.setRole == SetRole.topSet && s.targetWeightKg != null)
+        .firstOrNull;
+    final plannedBackOff = sets
+        .where((s) => s.setRole == SetRole.backOff && s.targetWeightKg != null)
+        .firstOrNull;
     final parts = <String>[
       setup.strategy.displayName,
       if (config.summary.isNotEmpty) config.summary,
-      if (planned != null)
+      if (plannedTop != null)
+        'Meta principal ${UnitConverter.format(plannedTop.targetWeightKg!, unit)}',
+      if (plannedBackOff != null)
+        'back-off ${UnitConverter.format(plannedBackOff.targetWeightKg!, unit)}',
+      if (plannedTop == null && plannedBackOff == null && planned != null)
         'Meta ${UnitConverter.format(planned.targetWeightKg!, unit)}',
     ];
 

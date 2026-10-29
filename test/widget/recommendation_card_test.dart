@@ -177,4 +177,94 @@ void main() {
     expect(await decisionOf(rec.id), RecommendationDecision.dismissed);
     await unmount(tester);
   });
+
+  testWidgets('principal + back-off: texto agrupa por papel', (tester) async {
+    final rec = await recommend(
+      targets: const [
+        SetTarget(role: SetRole.topSet, weightKg: 72.5, repsMin: 4, repsMax: 6),
+        SetTarget(
+          role: SetRole.backOff,
+          weightKg: 62.5,
+          repsMin: 8,
+          repsMax: 10,
+        ),
+        SetTarget(
+          role: SetRole.backOff,
+          weightKg: 62.5,
+          repsMin: 8,
+          repsMax: 10,
+        ),
+        SetTarget(
+          role: SetRole.backOff,
+          weightKg: 62.5,
+          repsMin: 8,
+          repsMax: 10,
+        ),
+      ],
+    );
+    await pumpWithDb(tester, db, card(rec));
+
+    expect(
+      find.text('Principal: 72.5 kg × 4–6  ·  Back-off: 3 × 62.5 kg × 8–10'),
+      findsOneWidget,
+    );
+    await unmount(tester);
+  });
+
+  testWidgets('Ajustar com papéis: campos separados, estrutura mantida', (
+    tester,
+  ) async {
+    final rec = await recommend(
+      targets: const [
+        SetTarget(
+          role: SetRole.topSet,
+          weightKg: 72.5,
+          repsMin: 4,
+          repsMax: 6,
+          rpe: 9,
+        ),
+        SetTarget(
+          role: SetRole.backOff,
+          weightKg: 62.5,
+          repsMin: 8,
+          repsMax: 10,
+        ),
+        SetTarget(
+          role: SetRole.backOff,
+          weightKg: 62.5,
+          repsMin: 8,
+          repsMax: 10,
+        ),
+      ],
+    );
+    await pumpWithDb(tester, db, card(rec));
+
+    await tester.tap(find.text('Ajustar'));
+    await tester.pumpAndSettle();
+    expect(find.text('Série principal'), findsOneWidget);
+    expect(find.text('Back-off'), findsOneWidget);
+
+    // Muda só a carga da principal (primeiro campo "Carga").
+    await tester.enterText(
+      find.widgetWithText(TextField, 'Carga').first,
+      '71,25',
+    );
+    await tester.tap(find.text('Salvar'));
+    await tester.pumpAndSettle();
+
+    final saved = await (db.select(
+      db.progressionRecommendations,
+    )..where((r) => r.id.equals(rec.id))).getSingle();
+    final targets = ProgressionRepository.decodeTargets(
+      saved.finalTargetsJson!,
+    );
+    expect(targets.map((t) => (t.role, t.weightKg)), [
+      (SetRole.topSet, 71.25),
+      (SetRole.backOff, 62.5),
+      (SetRole.backOff, 62.5),
+    ]);
+    // O RPE-alvo da principal não se perde no ajuste.
+    expect(targets.first.rpe, 9.0);
+    await unmount(tester);
+  });
 }

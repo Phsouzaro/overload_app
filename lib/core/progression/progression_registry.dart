@@ -4,6 +4,7 @@ import 'strategies/double_progression.dart';
 import 'strategies/linear_progression.dart';
 import 'strategies/rir_based_progression.dart';
 import 'strategies/rpe_based_progression.dart';
+import 'strategies/top_set_back_off.dart';
 
 /// Estratégias disponíveis, por identificador.
 class ProgressionRegistry {
@@ -18,6 +19,7 @@ class ProgressionRegistry {
     LinearProgressionStrategy(),
     RirBasedStrategy(),
     RpeBasedStrategy(),
+    TopSetBackOffStrategy(),
   ]);
 
   ProgressionStrategy? strategyFor(StrategyId id) => _strategies[id];

@@ -34,49 +34,12 @@ abstract final class SessionChecks {
   }) {
     final ex = input.exercise;
 
-    if (ex.incrementKg <= 0) {
-      return (
-        stop: const ProgressionResult(
-          status: RecommendationStatus.manualReview,
-          reasonCode: 'noIncrement',
-          explanation:
-              'Defina o incremento de carga disponível para este '
-              'exercício para receber sugestões.',
-          unmet: [
-            Criterion('incrementAvailable', 'Incremento de carga definido'),
-          ],
-        ),
-        session: null,
-      );
-    }
-    if (input.history.isEmpty) {
-      return (
-        stop: const ProgressionResult(
-          status: RecommendationStatus.insufficientData,
-          reasonCode: 'noHistory',
-          explanation: 'Ainda não há sessões registradas deste exercício.',
-        ),
-        session: null,
-      );
-    }
+    final basic = basics(input);
+    if (basic != null) return (stop: basic, session: null);
 
     final latest = input.history.first;
     final analyzed = [latest.sessionId];
     final working = ProgressionRules.workingSets(latest);
-    if (working.isEmpty) {
-      return (
-        stop: ProgressionResult(
-          status: RecommendationStatus.insufficientData,
-          reasonCode: 'noWorkingSets',
-          explanation:
-              'A última sessão não tem séries de trabalho registradas '
-              '(só aquecimento ou séries vazias).',
-          analyzedSessionIds: analyzed,
-        ),
-        session: null,
-      );
-    }
-
     final considered = working.take(sets).toList();
     final loads = {for (final s in considered) s.weightKg ?? 0.0};
     if (loads.length > 1) {
@@ -102,36 +65,83 @@ abstract final class SessionChecks {
     }
 
     final load = loads.single;
-    if (ProgressionRules.isLongBreak(input.history, input.now)) {
-      final days = ProgressionRules.daysSinceLastSession(
-        input.history,
-        input.now,
-      );
-      return (
-        stop: ProgressionResult(
-          status: RecommendationStatus.manualReview,
-          reasonCode: 'longBreak',
-          explanation:
-              'Faz $days dias desde a última sessão deste exercício. '
-              'Retome com a carga anterior (${describeLoad(load, ex)}) ou '
-              'menor, conforme se sentir, antes de voltar a progredir.',
-          unmet: const [
-            Criterion(
-              'recentHistory',
-              'Sessão recente (até ${ProgressionRules.longBreakDays} dias)',
-            ),
-          ],
-          currentWeightKg: load,
-          analyzedSessionIds: analyzed,
-          nextTargets: [
-            for (var i = 0; i < sets; i++) targetFor(loadOrNull(load, ex)),
-          ],
-        ),
-        session: null,
-      );
-    }
+    final pause = longBreak(
+      input,
+      loadText: describeLoad(load, ex),
+      currentWeightKg: load,
+      targets: [for (var i = 0; i < sets; i++) targetFor(loadOrNull(load, ex))],
+    );
+    if (pause != null) return (stop: pause, session: null);
 
     return (stop: null, session: CheckedSession(latest, considered, load));
+  }
+
+  /// Pré-requisitos de qualquer estratégia de carga: incremento definido,
+  /// histórico e séries de trabalho na sessão mais recente. `null` = ok.
+  static ProgressionResult? basics(ProgressionInput input) {
+    if (input.exercise.incrementKg <= 0) {
+      return const ProgressionResult(
+        status: RecommendationStatus.manualReview,
+        reasonCode: 'noIncrement',
+        explanation:
+            'Defina o incremento de carga disponível para este '
+            'exercício para receber sugestões.',
+        unmet: [
+          Criterion('incrementAvailable', 'Incremento de carga definido'),
+        ],
+      );
+    }
+    if (input.history.isEmpty) {
+      return const ProgressionResult(
+        status: RecommendationStatus.insufficientData,
+        reasonCode: 'noHistory',
+        explanation: 'Ainda não há sessões registradas deste exercício.',
+      );
+    }
+    final latest = input.history.first;
+    if (ProgressionRules.workingSets(latest).isEmpty) {
+      return ProgressionResult(
+        status: RecommendationStatus.insufficientData,
+        reasonCode: 'noWorkingSets',
+        explanation:
+            'A última sessão não tem séries de trabalho registradas '
+            '(só aquecimento ou séries vazias).',
+        analyzedSessionIds: [latest.sessionId],
+      );
+    }
+    return null;
+  }
+
+  /// Pausa longa desde a última sessão: pede revisão manual em vez de
+  /// progredir, sugerindo repetir [targets]. `null` = sem pausa longa.
+  static ProgressionResult? longBreak(
+    ProgressionInput input, {
+    required String loadText,
+    required double? currentWeightKg,
+    required List<SetTarget> targets,
+  }) {
+    if (!ProgressionRules.isLongBreak(input.history, input.now)) return null;
+    final days = ProgressionRules.daysSinceLastSession(
+      input.history,
+      input.now,
+    );
+    return ProgressionResult(
+      status: RecommendationStatus.manualReview,
+      reasonCode: 'longBreak',
+      explanation:
+          'Faz $days dias desde a última sessão deste exercício. '
+          'Retome com a carga anterior ($loadText) ou menor, conforme se '
+          'sentir, antes de voltar a progredir.',
+      unmet: const [
+        Criterion(
+          'recentHistory',
+          'Sessão recente (até ${ProgressionRules.longBreakDays} dias)',
+        ),
+      ],
+      currentWeightKg: currentWeightKg,
+      analyzedSessionIds: [input.history.first.sessionId],
+      nextTargets: targets,
+    );
   }
 
   /// Séries que não comprovam a meta (falha técnica, inválida ou, se exigido,

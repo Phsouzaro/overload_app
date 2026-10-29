@@ -63,6 +63,10 @@ abstract class ProgressionStrategy<C extends ProgressionConfig> {
   /// Nome exibido ao usuário.
   String get displayName;
 
+  /// Tipos de exercício em que a estratégia faz sentido (a tela de
+  /// configuração só oferece as compatíveis).
+  bool supportsLoadType(ExerciseLoadType type) => true;
+
   C configFromJson(Map<String, Object?> json);
 
   /// Lista vazia = configuração válida.

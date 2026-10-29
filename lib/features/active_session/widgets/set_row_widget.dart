@@ -6,6 +6,9 @@ import '../../../core/utils/unit_converter.dart';
 class SetRowWidget extends StatefulWidget {
   final SessionSet set;
   final int index;
+
+  /// Rótulo no lugar do número (ex: "P" para a série principal).
+  final String? indexLabel;
   final double? prWeight;
   final double? hintWeight;
   final int? hintReps;
@@ -28,6 +31,7 @@ class SetRowWidget extends StatefulWidget {
     super.key,
     required this.set,
     required this.index,
+    this.indexLabel,
     required this.onConfirm,
     required this.onDelete,
     this.onDetails,
@@ -178,7 +182,7 @@ class _SetRowWidgetState extends State<SetRowWidget> {
           SizedBox(
             width: 24,
             child: Text(
-              '${widget.index}',
+              widget.indexLabel ?? '${widget.index}',
               textAlign: TextAlign.center,
               style: TextStyle(
                 fontWeight: FontWeight.bold,

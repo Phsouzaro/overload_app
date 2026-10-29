@@ -48,6 +48,10 @@ void main() {
   );
 
   Future<void> open(WidgetTester tester, Exercise ex) async {
+    // Tela com proporção de celular (a padrão de teste é 800 × 600).
+    tester.view.physicalSize = const Size(420, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
     await pumpWithDb(tester, db, launcher(ex));
     await tester.tap(find.text('abrir'));
     await tester.pumpAndSettle();
@@ -252,6 +256,54 @@ void main() {
       expect(active!.strategy, StrategyId.rpeBased);
       final params = jsonDecode(active.paramsJson) as Map;
       expect((params['targetRpe'], params['rpeTolerance']), (8.0, 0.5));
+      await unmount(tester);
+    });
+  });
+
+  group('Série Principal + Back-off', () {
+    testWidgets('mostra a estrutura e o exemplo com papéis', (tester) async {
+      final ex = await exercise();
+      await open(tester, ex);
+
+      await tester.tap(find.text('Série Principal + Back-off'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Séries de back-off'), findsOneWidget);
+      expect(find.text('−15%'), findsOneWidget);
+      final example = find.textContaining('Principal no topo');
+      await tester.scrollUntilVisible(
+        example,
+        300,
+        scrollable: find.byType(Scrollable).first,
+      );
+      // 50 kg × 6 → 52,5; back-off 52,5 × 0,85 = 44,6 → 45 (3 séries).
+      expect(find.textContaining('Principal: 52.5 kg × 4–6'), findsWidgets);
+      expect(find.textContaining('Back-off: 3 × 45.0 kg × 6–8'), findsWidgets);
+      await unmount(tester);
+    });
+
+    testWidgets('não aparece para exercício de peso corporal', (tester) async {
+      final ex = await exercise(type: SetType.bodyweight);
+      await open(tester, ex);
+
+      expect(find.text('Progressão Dupla'), findsOneWidget);
+      expect(find.text('Série Principal + Back-off'), findsNothing);
+      await unmount(tester);
+    });
+
+    testWidgets('salvar grava a estrutura', (tester) async {
+      final ex = await exercise();
+      await open(tester, ex);
+
+      await tester.tap(find.text('Série Principal + Back-off'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Salvar'));
+      await tester.pumpAndSettle();
+
+      final active = await repo.activeConfig(ex.id);
+      expect(active!.strategy, StrategyId.topSetBackOff);
+      final params = jsonDecode(active.paramsJson) as Map;
+      expect((params['backOffSets'], params['backOffPercent']), (3, 15));
       await unmount(tester);
     });
   });

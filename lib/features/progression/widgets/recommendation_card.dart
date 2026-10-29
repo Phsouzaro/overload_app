@@ -269,8 +269,32 @@ String describeTargets(
     final r = reps(first);
     return '${load(first.weightKg)} — ${targets.length}${r.isEmpty ? ' séries' : ' × $r'}$rir$rpe';
   }
+  // Metas diferentes: agrupa séries seguidas iguais, com o papel quando há
+  // estrutura (ex: "Principal: 72.5 kg × 4–6 · Back-off: 3 × 62.5 kg × 8–10").
+  final groups = <(SetTarget, int)>[];
+  for (final t in targets) {
+    final last = groups.lastOrNull;
+    if (last != null &&
+        last.$1.role == t.role &&
+        last.$1.weightKg == t.weightKg &&
+        last.$1.repsMin == t.repsMin &&
+        last.$1.repsMax == t.repsMax) {
+      groups[groups.length - 1] = (last.$1, last.$2 + 1);
+    } else {
+      groups.add((t, 1));
+    }
+  }
+  String role(SetRole r) => switch (r) {
+    SetRole.topSet => 'Principal: ',
+    SetRole.backOff => 'Back-off: ',
+    SetRole.wave => 'Onda: ',
+    SetRole.work => '',
+  };
   return [
-    for (final t in targets) '${load(t.weightKg)} × ${reps(t)}',
+    for (final (t, n) in groups)
+      '${role(t.role)}${n > 1 ? '$n × ' : ''}${load(t.weightKg)} × ${reps(t)}'
+          '${t.rir != null ? ' · RIR ${t.rir}' : ''}'
+          '${t.rpe != null ? ' · RPE ${formatRpe(t.rpe!)}' : ''}',
   ].join('  ·  ');
 }
 
@@ -337,7 +361,9 @@ class _Reasons extends StatelessWidget {
   }
 }
 
-/// Ajuste manual: mesma carga e faixa para todas as séries sugeridas.
+/// Ajuste manual. Séries com o mesmo papel (ex: todo o back-off) recebem a
+/// mesma carga e faixa; papéis diferentes (série principal × back-off) são
+/// ajustados separadamente, preservando a estrutura.
 class _AdjustDialog extends StatefulWidget {
   final List<SetTarget> targets;
   final WeightUnit unit;
@@ -353,108 +379,152 @@ class _AdjustDialog extends StatefulWidget {
   State<_AdjustDialog> createState() => _AdjustDialogState();
 }
 
+class _RoleFields {
+  final SetTarget first;
+  final TextEditingController weight;
+  final TextEditingController min;
+  final TextEditingController max;
+
+  _RoleFields(this.first, WeightUnit unit)
+    : weight = TextEditingController(
+        text: first.weightKg == null
+            ? ''
+            : UnitConverter.toDisplay(first.weightKg!, unit).toStringAsFixed(1),
+      ),
+      min = TextEditingController(text: first.repsMin?.toString() ?? ''),
+      max = TextEditingController(text: first.repsMax?.toString() ?? '');
+
+  void dispose() {
+    weight.dispose();
+    min.dispose();
+    max.dispose();
+  }
+}
+
 class _AdjustDialogState extends State<_AdjustDialog> {
-  late final _weight = TextEditingController(
-    text: widget.targets.first.weightKg == null
-        ? ''
-        : UnitConverter.toDisplay(
-            widget.targets.first.weightKg!,
-            widget.unit,
-          ).toStringAsFixed(1),
-  );
-  late final _min = TextEditingController(
-    text: widget.targets.first.repsMin?.toString() ?? '',
-  );
-  late final _max = TextEditingController(
-    text: widget.targets.first.repsMax?.toString() ?? '',
-  );
+  /// Um grupo de campos por papel, na ordem em que aparecem, preenchido com
+  /// a primeira meta daquele papel.
+  final Map<SetRole, _RoleFields> _fields = {};
   String? _error;
 
   @override
+  void initState() {
+    super.initState();
+    for (final t in widget.targets) {
+      _fields.putIfAbsent(t.role, () => _RoleFields(t, widget.unit));
+    }
+  }
+
+  @override
   void dispose() {
-    _weight.dispose();
-    _min.dispose();
-    _max.dispose();
+    for (final f in _fields.values) {
+      f.dispose();
+    }
     super.dispose();
   }
 
   void _save() {
-    final display = double.tryParse(_weight.text.replaceAll(',', '.'));
-    final min = int.tryParse(_min.text);
-    final max = int.tryParse(_max.text) ?? min;
-    if ((!widget.bodyweight && (display == null || display <= 0)) ||
-        min == null ||
-        min < 1 ||
-        max! < min) {
-      setState(() => _error = 'Confira a carga e a faixa de repetições');
-      return;
+    final adjusted = <SetRole, SetTarget>{};
+    for (final MapEntry(key: role, value: f) in _fields.entries) {
+      final display = double.tryParse(f.weight.text.replaceAll(',', '.'));
+      final min = int.tryParse(f.min.text);
+      final max = int.tryParse(f.max.text) ?? min;
+      if ((!widget.bodyweight && (display == null || display <= 0)) ||
+          min == null ||
+          min < 1 ||
+          max! < min) {
+        setState(() => _error = 'Confira as cargas e as faixas de repetições');
+        return;
+      }
+      adjusted[role] = SetTarget(
+        role: role,
+        weightKg: display == null || display <= 0
+            ? null
+            : UnitConverter.fromDisplay(display, widget.unit),
+        repsMin: min,
+        repsMax: max,
+        rir: f.first.rir,
+        rpe: f.first.rpe,
+      );
     }
-    final kg = display == null || display <= 0
-        ? null
-        : UnitConverter.fromDisplay(display, widget.unit);
-    Navigator.pop(context, [
-      for (final t in widget.targets)
-        SetTarget(
-          role: t.role,
-          weightKg: kg,
-          repsMin: min,
-          repsMax: max,
-          rir: t.rir,
-        ),
-    ]);
+    Navigator.pop(context, [for (final t in widget.targets) adjusted[t.role]!]);
   }
+
+  static String _roleTitle(SetRole role) => switch (role) {
+    SetRole.topSet => 'Série principal',
+    SetRole.backOff => 'Back-off',
+    SetRole.wave => 'Onda',
+    SetRole.work => 'Séries',
+  };
 
   @override
   Widget build(BuildContext context) {
     final label = UnitConverter.label(widget.unit);
-    return AlertDialog(
-      title: const Text('Ajustar sugestão'),
-      content: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          TextField(
-            controller: _weight,
-            keyboardType: const TextInputType.numberWithOptions(decimal: true),
-            decoration: InputDecoration(
-              labelText: widget.bodyweight ? 'Carga adicional' : 'Carga',
-              suffixText: label,
-              border: const OutlineInputBorder(),
+    final grouped = _fields.length > 1;
+
+    Widget group(SetRole role, _RoleFields f) => Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        if (grouped) ...[
+          Text(_roleTitle(role), style: Theme.of(context).textTheme.titleSmall),
+          const SizedBox(height: 8),
+        ],
+        TextField(
+          controller: f.weight,
+          keyboardType: const TextInputType.numberWithOptions(decimal: true),
+          decoration: InputDecoration(
+            labelText: widget.bodyweight ? 'Carga adicional' : 'Carga',
+            suffixText: label,
+            border: const OutlineInputBorder(),
+          ),
+        ),
+        const SizedBox(height: 12),
+        Row(
+          children: [
+            Expanded(
+              child: TextField(
+                controller: f.min,
+                keyboardType: TextInputType.number,
+                decoration: const InputDecoration(
+                  labelText: 'Reps mín.',
+                  border: OutlineInputBorder(),
+                ),
+              ),
             ),
-          ),
-          const SizedBox(height: 12),
-          Row(
-            children: [
-              Expanded(
-                child: TextField(
-                  controller: _min,
-                  keyboardType: TextInputType.number,
-                  decoration: const InputDecoration(
-                    labelText: 'Reps mín.',
-                    border: OutlineInputBorder(),
-                  ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: TextField(
+                controller: f.max,
+                keyboardType: TextInputType.number,
+                decoration: const InputDecoration(
+                  labelText: 'Reps máx.',
+                  border: OutlineInputBorder(),
                 ),
               ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: TextField(
-                  controller: _max,
-                  keyboardType: TextInputType.number,
-                  decoration: const InputDecoration(
-                    labelText: 'Reps máx.',
-                    border: OutlineInputBorder(),
-                  ),
-                ),
-              ),
-            ],
-          ),
-          if (_error != null) ...[
-            const SizedBox(height: 8),
-            Text(
-              _error!,
-              style: TextStyle(color: Theme.of(context).colorScheme.error),
             ),
           ],
-        ],
+        ),
+      ],
+    );
+
+    return AlertDialog(
+      title: const Text('Ajustar sugestão'),
+      content: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            for (final MapEntry(key: role, value: f) in _fields.entries) ...[
+              group(role, f),
+              const SizedBox(height: 16),
+            ],
+            if (_error != null)
+              Text(
+                _error!,
+                style: TextStyle(color: Theme.of(context).colorScheme.error),
+              ),
+          ],
+        ),
       ),
       actions: [
         TextButton(
